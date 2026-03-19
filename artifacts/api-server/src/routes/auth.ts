@@ -79,6 +79,59 @@ router.post("/login", async (req, res) => {
   }
 });
 
+// POST /api/auth/check-email  — verifies an account exists without changing anything
+router.post("/check-email", async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: "Email is required." });
+
+    const [user] = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.email, email.toLowerCase()));
+
+    if (!user) {
+      return res.status(404).json({ error: "No account found with that email address." });
+    }
+    res.json({ found: true });
+  } catch {
+    res.status(500).json({ error: "Server error." });
+  }
+});
+
+// POST /api/auth/reset-password
+router.post("/reset-password", async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+    if (!email || !newPassword) {
+      return res.status(400).json({ error: "Email and new password are required." });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: "Password must be at least 6 characters." });
+    }
+
+    const [user] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.email, email.toLowerCase()));
+
+    if (!user) {
+      return res.status(404).json({ error: "No account found with that email address." });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await db
+      .update(usersTable)
+      .set({ passwordHash })
+      .where(eq(usersTable.id, user.id));
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Password reset failed. Please try again." });
+  }
+});
+
 // GET /api/auth/me  (requires Authorization: Bearer <token>)
 router.get("/me", async (req, res) => {
   try {

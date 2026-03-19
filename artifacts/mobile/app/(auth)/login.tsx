@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { Link } from "expo-router";
+import { Link, router } from "expo-router";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { Colors } from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
@@ -119,6 +119,14 @@ export default function LoginScreen() {
               </View>
             </View>
 
+            {/* Forgot Password */}
+            <TouchableOpacity
+              onPress={() => router.push("/(auth)/forgot-password")}
+              style={s.forgotBtn}
+            >
+              <Text style={[s.forgotText, { color: C.primary }]}>Forgot password?</Text>
+            </TouchableOpacity>
+
             {/* Login Button */}
             <TouchableOpacity
               style={[s.primaryBtn, { backgroundColor: C.primary }, loading && s.btnDisabled]}
@@ -202,6 +210,9 @@ function makeStyles(C: typeof Colors.light) {
     },
     btnDisabled: { opacity: 0.6 },
     primaryBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+
+    forgotBtn: { alignSelf: "flex-end", marginTop: -4 },
+    forgotText: { fontSize: 13, fontWeight: "600" },
 
     switchRow: { flexDirection: "row", justifyContent: "center", gap: 6, alignItems: "center" },
     switchText: { fontSize: 14 },
