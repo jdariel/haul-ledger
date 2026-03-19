@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,10 @@ import {
   TouchableOpacity,
   RefreshControl,
   useColorScheme,
+  Modal,
+  Animated,
+  Pressable,
+  Platform,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -23,6 +27,28 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const [period, setPeriod] = useState<"week" | "month">("week");
   const [refreshing, setRefreshing] = useState(false);
+  const [fabOpen, setFabOpen] = useState(false);
+  const fabAnim = useRef(new Animated.Value(0)).current;
+
+  const toggleFab = () => {
+    const toValue = fabOpen ? 0 : 1;
+    setFabOpen(!fabOpen);
+    Animated.spring(fabAnim, { toValue, useNativeDriver: true, friction: 6, tension: 80 }).start();
+  };
+
+  const closeFab = () => {
+    setFabOpen(false);
+    Animated.spring(fabAnim, { toValue: 0, useNativeDriver: true, friction: 6, tension: 80 }).start();
+  };
+
+  const handleAction = (action: "expense" | "income" | "scan") => {
+    closeFab();
+    setTimeout(() => {
+      if (action === "expense") router.push("/add-expense");
+      else if (action === "income") router.push("/add-income");
+      else if (action === "scan") router.push("/scan-receipt");
+    }, 150);
+  };
   const { data: summary, refetch: refetchSummary } = useSummary();
   const { data: expenses, refetch: refetchExpenses } = useExpenses();
   const { data: income, refetch: refetchIncome } = useIncome();
@@ -191,16 +217,110 @@ export default function HomeScreen() {
         </View>
       </ScrollView>
 
+      {/* Speed Dial Overlay */}
+      {fabOpen && (
+        <Pressable style={s.overlay} onPress={closeFab} />
+      )}
+
+      {/* Speed Dial Actions */}
+      {fabOpen && (
+        <View style={[s.dialContainer, { bottom: TAB_BAR_HEIGHT + insets.bottom + 88 }]}>
+          <SpeedDialItem
+            anim={fabAnim}
+            delay={0}
+            label="Add Income"
+            icon="trending-up"
+            iconColor="#fff"
+            bgColor={C.green}
+            onPress={() => handleAction("income")}
+          />
+          <SpeedDialItem
+            anim={fabAnim}
+            delay={40}
+            label="Add Expense"
+            icon="receipt-outline"
+            iconColor="#fff"
+            bgColor={C.red}
+            onPress={() => handleAction("expense")}
+          />
+          <SpeedDialItem
+            anim={fabAnim}
+            delay={80}
+            label="Scan Receipt"
+            icon="scan-outline"
+            iconColor="#fff"
+            bgColor={C.orange}
+            onPress={() => handleAction("scan")}
+          />
+        </View>
+      )}
+
       {/* FAB */}
       <TouchableOpacity
         style={[s.fab, { backgroundColor: C.primary, bottom: TAB_BAR_HEIGHT + insets.bottom + 16 }]}
-        onPress={() => router.push("/add-expense")}
+        onPress={toggleFab}
+        activeOpacity={0.85}
       >
-        <Ionicons name="add" size={28} color="#fff" />
+        <Animated.View style={{
+          transform: [{
+            rotate: fabAnim.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "45deg"] })
+          }]
+        }}>
+          <Ionicons name="add" size={28} color="#fff" />
+        </Animated.View>
       </TouchableOpacity>
     </SafeAreaView>
   );
 }
+
+function SpeedDialItem({ anim, delay, label, icon, iconColor, bgColor, onPress }: any) {
+  const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] });
+  const opacity = anim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
+  return (
+    <Animated.View style={[sdStyles.row, { opacity, transform: [{ translateY }] }]}>
+      <Text style={sdStyles.label}>{label}</Text>
+      <TouchableOpacity
+        style={[sdStyles.miniFab, { backgroundColor: bgColor }]}
+        onPress={onPress}
+        activeOpacity={0.85}
+      >
+        <Ionicons name={icon} size={20} color={iconColor} />
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
+const sdStyles = StyleSheet.create({
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    marginBottom: 12,
+    gap: 10,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#fff",
+    backgroundColor: "rgba(0,0,0,0.55)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    overflow: "hidden",
+  },
+  miniFab: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+});
 
 function makeStyles(C: typeof Colors.light) {
   return StyleSheet.create({
@@ -283,6 +403,20 @@ function makeStyles(C: typeof Colors.light) {
     actName: { fontSize: 14, fontWeight: "600", color: C.text },
     actDate: { fontSize: 12, color: C.textSecondary, marginTop: 1 },
     actAmt: { fontSize: 15, fontWeight: "700" },
+    overlay: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: "rgba(0,0,0,0.45)",
+      zIndex: 10,
+    },
+    dialContainer: {
+      position: "absolute",
+      right: 20,
+      zIndex: 20,
+    },
     fab: {
       position: "absolute",
       bottom: 28,
@@ -297,6 +431,7 @@ function makeStyles(C: typeof Colors.light) {
       shadowOpacity: 0.18,
       shadowRadius: 8,
       elevation: 6,
+      zIndex: 30,
     },
   });
 }
