@@ -11,6 +11,7 @@ import summaryRouter from "./summary";
 import receiptsRouter from "./receipts";
 import storageRouter from "./storage";
 import iftaRouter from "./ifta";
+import authRouter from "./auth";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use("/summary", summaryRouter);
 router.use("/receipts", receiptsRouter);
 router.use(storageRouter);
 router.use("/ifta", iftaRouter);
+router.use("/auth", authRouter);
 
 export default router;

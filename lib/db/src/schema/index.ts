@@ -1,4 +1,4 @@
-import { pgTable, serial, text, real, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, real, integer, timestamp, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -96,6 +96,18 @@ export const savedRoutesTable = pgTable("saved_routes", {
 export const insertSavedRouteSchema = createInsertSchema(savedRoutesTable).omit({ id: true, createdAt: true });
 export type InsertSavedRoute = z.infer<typeof insertSavedRouteSchema>;
 export type SavedRoute = typeof savedRoutesTable.$inferSelect;
+
+export const usersTable = pgTable("users", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertUserSchema = createInsertSchema(usersTable).omit({ id: true, createdAt: true });
+export type InsertUser = z.infer<typeof insertUserSchema>;
+export type User = typeof usersTable.$inferSelect;
 
 export const quickExpensesTable = pgTable("quick_expenses", {
   id: serial("id").primaryKey(),

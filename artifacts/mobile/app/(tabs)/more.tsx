@@ -14,6 +14,7 @@ import { router } from "expo-router";
 import { Colors } from "@/constants/colors";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useAppContext } from "@/context/AppContext";
+import { useAuth } from "@/context/AuthContext";
 import { useColorScheme } from "@/hooks/useColorScheme";
 
 interface RowProps {
@@ -67,10 +68,15 @@ export default function MoreScreen() {
   const colorScheme = useColorScheme();
   const C = Colors[colorScheme === "dark" ? "dark" : "light"];
   const { settings, updateSettings } = useAppContext();
+  const { user, logout } = useAuth();
   const isDark = settings.colorScheme === "dark";
   const [mileTarget, setMileTarget] = useState(String(settings.mileageGoal || ""));
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
+
+  const initials = user?.name
+    ? user.name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()
+    : "??";
 
   const s = makeStyles(C);
 
@@ -87,14 +93,14 @@ export default function MoreScreen() {
         <View style={[s.card, { backgroundColor: C.card, borderColor: C.separator }]}>
           <View style={s.profileTop}>
             <View style={[s.avatar, { backgroundColor: C.primary }]}>
-              <Text style={s.avatarText}>DJ</Text>
+              <Text style={s.avatarText}>{initials}</Text>
             </View>
             <View style={s.profileInfo}>
-              <Text style={[s.profileName, { color: C.text }]}>Dariel Jimenez</Text>
-              <Text style={[s.profileEmail, { color: C.textSecondary }]}>jimenezdariel16@gmail.com</Text>
+              <Text style={[s.profileName, { color: C.text }]}>{user?.name ?? "—"}</Text>
+              <Text style={[s.profileEmail, { color: C.textSecondary }]}>{user?.email ?? ""}</Text>
               <View style={[s.authBadge, { backgroundColor: C.primary + "18" }]}>
                 <Ionicons name="shield-checkmark" size={10} color={C.primary} />
-                <Text style={[s.authBadgeText, { color: C.primary }]}>Replit Auth</Text>
+                <Text style={[s.authBadgeText, { color: C.primary }]}>HaulLedger Account</Text>
               </View>
             </View>
           </View>
@@ -232,7 +238,7 @@ export default function MoreScreen() {
         message="Are you sure you want to sign out?"
         confirmText="Sign Out"
         destructive
-        onConfirm={() => { setShowSignOutConfirm(false); }}
+        onConfirm={async () => { setShowSignOutConfirm(false); await logout(); }}
         onCancel={() => setShowSignOutConfirm(false)}
       />
     </SafeAreaView>
