@@ -79,32 +79,38 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// POST /api/auth/check-email  — verifies an account exists without changing anything
-router.post("/check-email", async (req, res) => {
+// POST /api/auth/verify-identity  — checks email + full name match before allowing reset
+router.post("/verify-identity", async (req, res) => {
   try {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ error: "Email is required." });
+    const { email, name } = req.body;
+    if (!email || !name) {
+      return res.status(400).json({ error: "Email and full name are required." });
+    }
 
     const [user] = await db
-      .select({ id: usersTable.id })
+      .select({ id: usersTable.id, name: usersTable.name })
       .from(usersTable)
       .where(eq(usersTable.email, email.toLowerCase()));
 
-    if (!user) {
-      return res.status(404).json({ error: "No account found with that email address." });
+    // Use the same generic message whether the email is unknown or the name doesn't match
+    // so we don't reveal which field is wrong
+    const nameMatches = user && user.name.toLowerCase().trim() === name.toLowerCase().trim();
+    if (!user || !nameMatches) {
+      return res.status(401).json({ error: "The name and email you entered don't match our records." });
     }
-    res.json({ found: true });
+
+    res.json({ verified: true });
   } catch {
     res.status(500).json({ error: "Server error." });
   }
 });
 
-// POST /api/auth/reset-password
+// POST /api/auth/reset-password  — requires email + name verification before resetting
 router.post("/reset-password", async (req, res) => {
   try {
-    const { email, newPassword } = req.body;
-    if (!email || !newPassword) {
-      return res.status(400).json({ error: "Email and new password are required." });
+    const { email, name, newPassword } = req.body;
+    if (!email || !name || !newPassword) {
+      return res.status(400).json({ error: "Email, name, and new password are required." });
     }
     if (newPassword.length < 6) {
       return res.status(400).json({ error: "Password must be at least 6 characters." });
@@ -115,8 +121,9 @@ router.post("/reset-password", async (req, res) => {
       .from(usersTable)
       .where(eq(usersTable.email, email.toLowerCase()));
 
-    if (!user) {
-      return res.status(404).json({ error: "No account found with that email address." });
+    const nameMatches = user && user.name.toLowerCase().trim() === name.toLowerCase().trim();
+    if (!user || !nameMatches) {
+      return res.status(401).json({ error: "The name and email you entered don't match our records." });
     }
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
