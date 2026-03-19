@@ -8,16 +8,34 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useColorScheme } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "@/constants/colors";
 import { useCreateExpense } from "@/hooks/useApi";
+import { API_BASE_URL } from "@/constants/api";
 
 const CATEGORIES = ["Fuel", "Maintenance", "Lumper", "Tolls", "Parking", "Scale Fee", "Other"];
+
+interface ParsedReceipt {
+  merchant: string;
+  date: string;
+  amount: string;
+  category: string;
+  gallons: string;
+  pricePerGallon: string;
+  jurisdiction: string;
+  receiptUrl: string | null;
+}
+
+type ScanStatus = "idle" | "uploading" | "analyzing" | "done" | "error";
 
 export default function ScanReceiptScreen() {
   const colorScheme = useColorScheme();
@@ -26,9 +44,9 @@ export default function ScanReceiptScreen() {
   const s = makeStyles(C);
 
   const [image, setImage] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [parsed, setParsed] = useState<{ amount?: string; merchant?: string; category?: string } | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState("Other");
+  const [scanStatus, setScanStatus] = useState<ScanStatus>("idle");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [parsed, setParsed] = useState<ParsedReceipt | null>(null);
 
   const createExpense = useCreateExpense();
 
@@ -54,147 +72,286 @@ export default function ScanReceiptScreen() {
     }
 
     if (!result.canceled && result.assets[0]) {
-      setImage(result.assets[0].uri);
-      setLoading(true);
-      // Simulate parsing — in a real app you'd send to an OCR API
-      setTimeout(() => {
-        setParsed({ amount: "", merchant: "", category: "Other" });
-        setSelectedCategory("Other");
-        setLoading(false);
-      }, 1200);
+      const uri = result.assets[0].uri;
+      setImage(uri);
+      setParsed(null);
+      setErrorMsg(null);
+      await processReceipt(uri);
+    }
+  };
+
+  const processReceipt = async (uri: string) => {
+    try {
+      setScanStatus("uploading");
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      setScanStatus("analyzing");
+      const response = await fetch(`${API_BASE_URL}/receipts/process`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageBase64: base64,
+          mimeType: "image/jpeg",
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: "Server error" }));
+        throw new Error(err.error ?? "Failed to process receipt");
+      }
+
+      const data = await response.json();
+      const today = new Date().toISOString().split("T")[0];
+
+      setParsed({
+        merchant: data.merchant ?? "",
+        date: data.date ?? today,
+        amount: data.amount != null ? String(data.amount) : "",
+        category: CATEGORIES.includes(data.category) ? data.category : "Other",
+        gallons: data.gallons != null ? String(data.gallons) : "",
+        pricePerGallon: data.pricePerGallon != null ? String(data.pricePerGallon) : "",
+        jurisdiction: data.jurisdiction ?? "",
+        receiptUrl: data.receiptUrl ?? null,
+      });
+      setScanStatus("done");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Could not read receipt";
+      setErrorMsg(msg);
+      setScanStatus("error");
     }
   };
 
   const handleSave = async () => {
     if (!parsed) return;
-    const amount = parseFloat(parsed.amount || "0");
+    const amount = parseFloat(parsed.amount);
     if (isNaN(amount) || amount <= 0) {
-      Alert.alert("Enter amount", "Please enter the expense amount.");
+      Alert.alert("Enter amount", "Please enter a valid expense amount.");
       return;
     }
-    await createExpense.mutateAsync({
-      category: selectedCategory,
-      merchant: parsed.merchant || "Receipt",
+    if (!parsed.merchant.trim()) {
+      Alert.alert("Enter merchant", "Please enter a merchant name.");
+      return;
+    }
+
+    const expenseData: Record<string, unknown> = {
+      category: parsed.category,
+      merchant: parsed.merchant.trim(),
       amount,
-      date: new Date().toISOString().split("T")[0],
+      date: parsed.date || new Date().toISOString().split("T")[0],
       notes: "Scanned receipt",
-    });
+      receiptUrl: parsed.receiptUrl ?? undefined,
+    };
+
+    if (parsed.category === "Fuel") {
+      if (parsed.gallons) expenseData.gallons = parseFloat(parsed.gallons);
+      if (parsed.pricePerGallon) expenseData.pricePerGallon = parseFloat(parsed.pricePerGallon);
+      if (parsed.jurisdiction) expenseData.jurisdiction = parsed.jurisdiction.trim();
+    }
+
+    await createExpense.mutateAsync(expenseData as Parameters<typeof createExpense.mutateAsync>[0]);
     router.back();
   };
 
+  const update = (field: keyof ParsedReceipt, value: string) => {
+    setParsed((prev) => prev ? { ...prev, [field]: value } : prev);
+  };
+
+  const statusLabel: Record<ScanStatus, string> = {
+    idle: "",
+    uploading: "Uploading receipt…",
+    analyzing: "AI is reading your receipt…",
+    done: "",
+    error: "",
+  };
+
   return (
-    <View style={[s.root, { paddingTop: insets.top }]}>
-      {/* Header */}
-      <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
-          <Ionicons name="chevron-back" size={22} color={C.primary} />
-          <Text style={[s.backText, { color: C.primary }]}>Back</Text>
-        </TouchableOpacity>
-        <Text style={s.title}>Scan Receipt</Text>
-        <View style={{ width: 60 }} />
-      </View>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
+      <View style={[s.root, { paddingTop: insets.top }]}>
+        <View style={s.header}>
+          <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
+            <Ionicons name="chevron-back" size={22} color={C.primary} />
+            <Text style={[s.backText, { color: C.primary }]}>Back</Text>
+          </TouchableOpacity>
+          <Text style={s.title}>Scan Receipt</Text>
+          <View style={{ width: 60 }} />
+        </View>
 
-      <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
-        {/* Image area */}
-        {!image ? (
-          <View style={s.placeholder}>
-            <View style={[s.scanIcon, { backgroundColor: C.orangeLight }]}>
-              <Ionicons name="scan-outline" size={48} color={C.orange} />
-            </View>
-            <Text style={s.placeholderTitle}>Scan a Receipt</Text>
-            <Text style={s.placeholderSub}>Take a photo or choose from your library to extract expense details automatically.</Text>
-            <View style={s.btnRow}>
-              <TouchableOpacity
-                style={[s.pickBtn, { backgroundColor: C.primary }]}
-                onPress={() => pickImage(true)}
-              >
-                <Ionicons name="camera-outline" size={18} color="#fff" />
-                <Text style={s.pickBtnText}>Camera</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[s.pickBtn, { backgroundColor: C.card, borderWidth: 1, borderColor: C.separator }]}
-                onPress={() => pickImage(false)}
-              >
-                <Ionicons name="image-outline" size={18} color={C.text} />
-                <Text style={[s.pickBtnText, { color: C.text }]}>Library</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ) : (
-          <View style={s.imageContainer}>
-            <Image source={{ uri: image }} style={s.receiptImage} resizeMode="contain" />
-            <TouchableOpacity
-              style={[s.retakeBtn, { borderColor: C.separator, backgroundColor: C.card }]}
-              onPress={() => { setImage(null); setParsed(null); }}
-            >
-              <Ionicons name="refresh-outline" size={15} color={C.textSecondary} />
-              <Text style={[s.retakeText, { color: C.textSecondary }]}>Retake</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Loading */}
-        {loading && (
-          <View style={s.loadingBox}>
-            <ActivityIndicator size="small" color={C.primary} />
-            <Text style={[s.loadingText, { color: C.textSecondary }]}>Reading receipt…</Text>
-          </View>
-        )}
-
-        {/* Parsed Fields */}
-        {parsed && !loading && (
-          <View style={[s.card, { backgroundColor: C.card, borderColor: C.separator }]}>
-            <Text style={[s.cardTitle, { color: C.text }]}>Receipt Details</Text>
-
-            <Text style={[s.fieldLabel, { color: C.textSecondary }]}>Merchant</Text>
-            <View style={[s.input, { backgroundColor: C.inputBackground, borderColor: C.separator }]}>
-              <Text
-                style={[s.inputText, { color: parsed.merchant ? C.text : C.textMuted }]}
-                onPress={() => {}}
-              >
-                {parsed.merchant || "Enter merchant name…"}
+        <ScrollView
+          contentContainerStyle={s.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {!image ? (
+            <View style={s.placeholder}>
+              <View style={[s.scanIcon, { backgroundColor: C.orangeLight }]}>
+                <Ionicons name="scan-outline" size={48} color={C.orange} />
+              </View>
+              <Text style={s.placeholderTitle}>Scan a Receipt</Text>
+              <Text style={s.placeholderSub}>
+                Take a photo or choose from your library. AI will extract the expense details automatically.
               </Text>
-            </View>
-
-            <Text style={[s.fieldLabel, { color: C.textSecondary }]}>Amount ($)</Text>
-            <View style={[s.input, { backgroundColor: C.inputBackground, borderColor: C.separator }]}>
-              <Text style={[s.inputText, { color: parsed.amount ? C.text : C.textMuted }]}>
-                {parsed.amount || "Enter amount…"}
-              </Text>
-            </View>
-
-            <Text style={[s.fieldLabel, { color: C.textSecondary }]}>Category</Text>
-            <View style={s.catGrid}>
-              {CATEGORIES.map((cat) => (
+              <View style={s.btnRow}>
                 <TouchableOpacity
-                  key={cat}
-                  onPress={() => setSelectedCategory(cat)}
-                  style={[
-                    s.catChip,
-                    { borderColor: selectedCategory === cat ? C.primary : C.separator,
-                      backgroundColor: selectedCategory === cat ? C.primaryLight : C.card }
-                  ]}
+                  style={[s.pickBtn, { backgroundColor: C.primary }]}
+                  onPress={() => pickImage(true)}
                 >
-                  <Text style={[s.catText, { color: selectedCategory === cat ? C.primary : C.textSecondary }]}>
-                    {cat}
-                  </Text>
+                  <Ionicons name="camera-outline" size={18} color="#fff" />
+                  <Text style={s.pickBtnText}>Camera</Text>
                 </TouchableOpacity>
-              ))}
+                <TouchableOpacity
+                  style={[s.pickBtn, { backgroundColor: C.card, borderWidth: 1, borderColor: C.separator }]}
+                  onPress={() => pickImage(false)}
+                >
+                  <Ionicons name="image-outline" size={18} color={C.text} />
+                  <Text style={[s.pickBtnText, { color: C.text }]}>Library</Text>
+                </TouchableOpacity>
+              </View>
             </View>
+          ) : (
+            <View style={s.imageContainer}>
+              <Image source={{ uri: image }} style={s.receiptImage} resizeMode="contain" />
+              <TouchableOpacity
+                style={[s.retakeBtn, { borderColor: C.separator, backgroundColor: C.card }]}
+                onPress={() => { setImage(null); setParsed(null); setScanStatus("idle"); setErrorMsg(null); }}
+              >
+                <Ionicons name="refresh-outline" size={15} color={C.textSecondary} />
+                <Text style={[s.retakeText, { color: C.textSecondary }]}>Retake</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
-            <TouchableOpacity
-              style={[s.saveBtn, { backgroundColor: C.primary }]}
-              onPress={handleSave}
-              disabled={createExpense.isPending}
-            >
-              <Text style={s.saveBtnText}>
-                {createExpense.isPending ? "Saving…" : "Save Expense"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </ScrollView>
-    </View>
+          {(scanStatus === "uploading" || scanStatus === "analyzing") && (
+            <View style={s.statusBox}>
+              <ActivityIndicator size="small" color={C.primary} />
+              <Text style={[s.statusText, { color: C.textSecondary }]}>{statusLabel[scanStatus]}</Text>
+            </View>
+          )}
+
+          {scanStatus === "error" && (
+            <View style={[s.errorBox, { backgroundColor: "#fef2f2", borderColor: "#fca5a5" }]}>
+              <Ionicons name="alert-circle-outline" size={20} color="#ef4444" />
+              <Text style={[s.errorText, { color: "#ef4444" }]}>{errorMsg}</Text>
+            </View>
+          )}
+
+          {parsed && scanStatus === "done" && (
+            <View style={[s.card, { backgroundColor: C.card, borderColor: C.separator }]}>
+              <View style={s.cardHeaderRow}>
+                <Text style={[s.cardTitle, { color: C.text }]}>Receipt Details</Text>
+                <View style={[s.aiBadge, { backgroundColor: C.primaryLight }]}>
+                  <Ionicons name="sparkles" size={11} color={C.primary} />
+                  <Text style={[s.aiBadgeText, { color: C.primary }]}>AI Filled</Text>
+                </View>
+              </View>
+
+              <Text style={[s.fieldLabel, { color: C.textSecondary }]}>MERCHANT</Text>
+              <TextInput
+                style={[s.input, { backgroundColor: C.inputBackground, borderColor: C.separator, color: C.text }]}
+                value={parsed.merchant}
+                onChangeText={(v) => update("merchant", v)}
+                placeholder="Merchant name"
+                placeholderTextColor={C.textMuted}
+              />
+
+              <Text style={[s.fieldLabel, { color: C.textSecondary }]}>DATE</Text>
+              <TextInput
+                style={[s.input, { backgroundColor: C.inputBackground, borderColor: C.separator, color: C.text }]}
+                value={parsed.date}
+                onChangeText={(v) => update("date", v)}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor={C.textMuted}
+                keyboardType="numbers-and-punctuation"
+              />
+
+              <Text style={[s.fieldLabel, { color: C.textSecondary }]}>AMOUNT ($)</Text>
+              <TextInput
+                style={[s.input, { backgroundColor: C.inputBackground, borderColor: C.separator, color: C.text }]}
+                value={parsed.amount}
+                onChangeText={(v) => update("amount", v)}
+                placeholder="0.00"
+                placeholderTextColor={C.textMuted}
+                keyboardType="decimal-pad"
+              />
+
+              <Text style={[s.fieldLabel, { color: C.textSecondary }]}>CATEGORY</Text>
+              <View style={s.catGrid}>
+                {CATEGORIES.map((cat) => (
+                  <TouchableOpacity
+                    key={cat}
+                    onPress={() => update("category", cat)}
+                    style={[
+                      s.catChip,
+                      {
+                        borderColor: parsed.category === cat ? C.primary : C.separator,
+                        backgroundColor: parsed.category === cat ? C.primaryLight : C.card,
+                      },
+                    ]}
+                  >
+                    <Text style={[s.catText, { color: parsed.category === cat ? C.primary : C.textSecondary }]}>
+                      {cat}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {parsed.category === "Fuel" && (
+                <>
+                  <Text style={[s.sectionLabel, { color: C.text }]}>Fuel Details</Text>
+
+                  <Text style={[s.fieldLabel, { color: C.textSecondary }]}>GALLONS</Text>
+                  <TextInput
+                    style={[s.input, { backgroundColor: C.inputBackground, borderColor: C.separator, color: C.text }]}
+                    value={parsed.gallons}
+                    onChangeText={(v) => update("gallons", v)}
+                    placeholder="0.000"
+                    placeholderTextColor={C.textMuted}
+                    keyboardType="decimal-pad"
+                  />
+
+                  <Text style={[s.fieldLabel, { color: C.textSecondary }]}>PRICE PER GALLON</Text>
+                  <TextInput
+                    style={[s.input, { backgroundColor: C.inputBackground, borderColor: C.separator, color: C.text }]}
+                    value={parsed.pricePerGallon}
+                    onChangeText={(v) => update("pricePerGallon", v)}
+                    placeholder="0.000"
+                    placeholderTextColor={C.textMuted}
+                    keyboardType="decimal-pad"
+                  />
+
+                  <Text style={[s.fieldLabel, { color: C.textSecondary }]}>STATE / JURISDICTION</Text>
+                  <TextInput
+                    style={[s.input, { backgroundColor: C.inputBackground, borderColor: C.separator, color: C.text }]}
+                    value={parsed.jurisdiction}
+                    onChangeText={(v) => update("jurisdiction", v)}
+                    placeholder="e.g. TX"
+                    placeholderTextColor={C.textMuted}
+                    autoCapitalize="characters"
+                    maxLength={2}
+                  />
+                </>
+              )}
+
+              <TouchableOpacity
+                style={[s.saveBtn, { backgroundColor: createExpense.isPending ? C.separator : C.primary }]}
+                onPress={handleSave}
+                disabled={createExpense.isPending}
+              >
+                {createExpense.isPending ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={s.saveBtnText}>Save Expense</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+        </ScrollView>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -214,12 +371,8 @@ function makeStyles(C: typeof Colors.light) {
     backBtn: { flexDirection: "row", alignItems: "center", gap: 2, width: 60 },
     backText: { fontSize: 15, fontWeight: "600" },
     title: { fontSize: 17, fontWeight: "700", color: C.text },
-    content: { padding: 20, gap: 16 },
-    placeholder: {
-      alignItems: "center",
-      paddingVertical: 40,
-      gap: 12,
-    },
+    content: { padding: 20, gap: 16, paddingBottom: 40 },
+    placeholder: { alignItems: "center", paddingVertical: 40, gap: 12 },
     scanIcon: {
       width: 88,
       height: 88,
@@ -245,7 +398,7 @@ function makeStyles(C: typeof Colors.light) {
     imageContainer: { alignItems: "center", gap: 10 },
     receiptImage: {
       width: "100%",
-      height: 280,
+      height: 260,
       borderRadius: 16,
       backgroundColor: C.inputBackground,
     },
@@ -259,23 +412,54 @@ function makeStyles(C: typeof Colors.light) {
       borderWidth: 1,
     },
     retakeText: { fontSize: 13, fontWeight: "600" },
-    loadingBox: { flexDirection: "row", alignItems: "center", gap: 10, justifyContent: "center", paddingVertical: 8 },
-    loadingText: { fontSize: 14 },
+    statusBox: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      justifyContent: "center",
+      paddingVertical: 12,
+    },
+    statusText: { fontSize: 14 },
+    errorBox: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      padding: 14,
+      borderRadius: 12,
+      borderWidth: 1,
+    },
+    errorText: { fontSize: 14, flex: 1 },
     card: {
       borderRadius: 16,
       padding: 16,
       borderWidth: 1,
       gap: 8,
     },
-    cardTitle: { fontSize: 16, fontWeight: "700", marginBottom: 4 },
-    fieldLabel: { fontSize: 12, fontWeight: "600", letterSpacing: 0.4 },
+    cardHeaderRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 4,
+    },
+    cardTitle: { fontSize: 16, fontWeight: "700" },
+    aiBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 8,
+    },
+    aiBadgeText: { fontSize: 11, fontWeight: "700" },
+    sectionLabel: { fontSize: 14, fontWeight: "700", marginTop: 8, marginBottom: -2 },
+    fieldLabel: { fontSize: 11, fontWeight: "700", letterSpacing: 0.6, marginTop: 4 },
     input: {
       borderRadius: 10,
       borderWidth: 1,
       paddingHorizontal: 12,
-      paddingVertical: 12,
+      paddingVertical: 11,
+      fontSize: 15,
     },
-    inputText: { fontSize: 15 },
     catGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
     catChip: {
       paddingHorizontal: 12,
@@ -285,10 +469,12 @@ function makeStyles(C: typeof Colors.light) {
     },
     catText: { fontSize: 13, fontWeight: "600" },
     saveBtn: {
-      marginTop: 8,
+      marginTop: 12,
       paddingVertical: 15,
       borderRadius: 14,
       alignItems: "center",
+      justifyContent: "center",
+      minHeight: 50,
     },
     saveBtnText: { fontSize: 15, fontWeight: "700", color: "#fff" },
   });
