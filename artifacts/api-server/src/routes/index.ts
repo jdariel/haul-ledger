@@ -9,6 +9,7 @@ import savedRoutesRouter from "./savedRoutes";
 import quickExpensesRouter from "./quickExpenses";
 import summaryRouter from "./summary";
 import receiptsRouter from "./receipts";
+import storageRouter from "./storage";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use("/saved-routes", savedRoutesRouter);
 router.use("/quick-expenses", quickExpensesRouter);
 router.use("/summary", summaryRouter);
 router.use("/receipts", receiptsRouter);
+router.use(storageRouter);
 
 export default router;

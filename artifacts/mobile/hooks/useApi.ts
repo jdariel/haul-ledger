@@ -54,6 +54,14 @@ export function useCreateExpense() {
   });
 }
 
+export function useExpense(id: number | null) {
+  return useQuery({
+    queryKey: ["expense", id],
+    queryFn: () => apiFetch(`/expenses/${id}`),
+    enabled: id != null,
+  });
+}
+
 export function useDeleteExpense() {
   const qc = useQueryClient();
   return useMutation({

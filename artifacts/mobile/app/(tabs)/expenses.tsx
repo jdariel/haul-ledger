@@ -193,7 +193,12 @@ export default function ExpensesScreen() {
             {filtered.map((e: any) => {
               const meta = CATEGORY_ICONS[e.category] ?? CATEGORY_ICONS.Other;
               return (
-                <View key={e.id} style={[s.expenseCard, { backgroundColor: C.card, borderColor: C.separator }]}>
+                <TouchableOpacity
+                  key={e.id}
+                  style={[s.expenseCard, { backgroundColor: C.card, borderColor: C.separator }]}
+                  onPress={() => router.push({ pathname: "/expense-detail", params: { id: e.id } })}
+                  activeOpacity={0.75}
+                >
                   <View style={[s.catIcon, { backgroundColor: meta.bg }]}>
                     <Ionicons name={meta.icon as any} size={18} color={meta.color} />
                   </View>
@@ -205,11 +210,16 @@ export default function ExpensesScreen() {
                   </View>
                   <View style={s.expRight}>
                     <Text style={[s.expAmt, { color: C.red }]}>-${Number(e.amount).toFixed(2)}</Text>
-                    <TouchableOpacity onPress={() => handleDelete(e.id)} style={s.deleteBtn}>
-                      <Ionicons name="trash-outline" size={15} color={C.textMuted} />
-                    </TouchableOpacity>
+                    <View style={s.expRightRow}>
+                      {e.receiptUrl && (
+                        <Ionicons name="receipt" size={13} color={C.primary} style={{ marginRight: 4 }} />
+                      )}
+                      <TouchableOpacity onPress={(ev) => { ev.stopPropagation(); handleDelete(e.id); }} style={s.deleteBtn}>
+                        <Ionicons name="trash-outline" size={15} color={C.textMuted} />
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                </View>
+                </TouchableOpacity>
               );
             })}
           </View>
@@ -301,6 +311,7 @@ function makeStyles(C: typeof Colors.light) {
     expMerchant: { fontSize: 14, fontWeight: "600" },
     expMeta: { fontSize: 12, marginTop: 2 },
     expRight: { alignItems: "flex-end", gap: 6 },
+    expRightRow: { flexDirection: "row", alignItems: "center" },
     expAmt: { fontSize: 15, fontWeight: "700" },
     deleteBtn: { padding: 2 },
   });

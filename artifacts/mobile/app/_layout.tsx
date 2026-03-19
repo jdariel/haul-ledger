@@ -61,6 +61,10 @@ function RootLayoutNav() {
         options={{ headerShown: false }}
       />
       <Stack.Screen
+        name="expense-detail"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
         name="add-fuel"
         options={{
           presentation: "modal",
