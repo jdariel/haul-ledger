@@ -46,7 +46,7 @@ router.post("/process", async (req, res) => {
     }
 
     const response = await openai.chat.completions.create({
-      model: "gpt-5-mini",
+      model: "gpt-4o-mini",
       max_completion_tokens: 1024,
       messages: [
         {
