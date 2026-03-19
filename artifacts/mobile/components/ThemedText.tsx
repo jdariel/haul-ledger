@@ -1,6 +1,7 @@
 import React from "react";
-import { Text, TextProps, useColorScheme } from "react-native";
+import { Text, TextProps } from "react-native";
 import { Colors } from "@/constants/colors";
+import { useColorScheme } from "@/hooks/useColorScheme";
 
 interface ThemedTextProps extends TextProps {
   variant?: "default" | "secondary" | "muted" | "primary" | "green" | "red";

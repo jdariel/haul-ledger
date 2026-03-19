@@ -15,7 +15,7 @@ interface AppContextType {
 const defaultSettings: AppSettings = {
   mileageGoal: 2500,
   apiBaseUrl: "",
-  colorScheme: "dark",
+  colorScheme: "light",
 };
 
 const AppContext = createContext<AppContextType>({

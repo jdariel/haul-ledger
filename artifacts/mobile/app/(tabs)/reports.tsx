@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  useColorScheme,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -15,6 +14,7 @@ import { router } from "expo-router";
 import { Colors } from "@/constants/colors";
 import { useSummary, useExpenses, useIncome } from "../../hooks/useApi";
 import { DateRangePicker } from "@/components/DateRangePicker";
+import { useColorScheme } from "@/hooks/useColorScheme";
 
 function fmtDate(d: Date) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });

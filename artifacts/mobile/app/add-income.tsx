@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { useColorScheme } from "react-native";
+
 import { Ionicons } from "@expo/vector-icons";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
@@ -19,6 +19,7 @@ import { Colors } from "@/constants/colors";
 import { FormInput } from "@/components/FormInput";
 import { SelectField } from "@/components/SelectField";
 import { useCreateIncome, useSavedRoutes } from "@/hooks/useApi";
+import { useColorScheme } from "@/hooks/useColorScheme";
 
 export default function AddIncomeScreen() {
   const colorScheme = useColorScheme();

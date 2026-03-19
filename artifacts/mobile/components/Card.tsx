@@ -1,6 +1,7 @@
 import React from "react";
-import { View, StyleSheet, ViewProps, useColorScheme } from "react-native";
+import { View, StyleSheet, ViewProps } from "react-native";
 import { Colors } from "@/constants/colors";
+import { useColorScheme } from "@/hooks/useColorScheme";
 
 interface CardProps extends ViewProps {
   noPadding?: boolean;

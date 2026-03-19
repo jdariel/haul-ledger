@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { useColorScheme } from "react-native";
+
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import { Ionicons } from "@expo/vector-icons";
@@ -22,6 +22,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "@/constants/colors";
 import { useCreateExpense } from "@/hooks/useApi";
 import { API_BASE_URL } from "@/constants/api";
+import { useColorScheme } from "@/hooks/useColorScheme";
 
 async function uriToBase64(uri: string): Promise<string> {
   if (uri.startsWith("data:")) {

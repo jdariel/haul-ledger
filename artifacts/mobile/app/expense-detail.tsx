@@ -8,7 +8,6 @@ import {
   Image,
   Modal,
   ActivityIndicator,
-  useColorScheme,
   Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -18,6 +17,7 @@ import { Platform } from "react-native";
 import { Colors } from "@/constants/colors";
 import { useExpense, useDeleteExpense } from "@/hooks/useApi";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { useColorScheme } from "@/hooks/useColorScheme";
 
 const BASE_URL =
   Platform.OS === "web"

@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
-import { useColorScheme } from "react-native";
+
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import * as ImagePicker from "expo-image-picker";
@@ -24,6 +24,7 @@ import { FormInput } from "@/components/FormInput";
 import { SelectField } from "@/components/SelectField";
 import { useCreateExpense } from "@/hooks/useApi";
 import { API_BASE_URL } from "@/constants/api";
+import { useColorScheme } from "@/hooks/useColorScheme";
 
 const CATEGORIES = [
   { label: "Fuel", value: "Fuel" },

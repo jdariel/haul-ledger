@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  useColorScheme,
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -14,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { Colors } from "@/constants/colors";
 import { useIFTA } from "@/hooks/useApi";
+import { useColorScheme } from "@/hooks/useColorScheme";
 
 const QUARTERS = ["Q1", "Q2", "Q3", "Q4"];
 const QUARTER_PERIODS = ["Jan – Mar", "Apr – Jun", "Jul – Sep", "Oct – Dec"];

@@ -1,10 +1,11 @@
 import React from "react";
-import { View, StyleSheet, Platform, TouchableOpacity, useColorScheme } from "react-native";
+import { View, StyleSheet, Platform, TouchableOpacity } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/ThemedText";
 import { Colors } from "@/constants/colors";
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useColorScheme } from "@/hooks/useColorScheme";
 
 interface ScreenHeaderProps {
   title: string;

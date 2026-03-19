@@ -8,7 +8,6 @@ import {
   TextInput,
   RefreshControl,
   Modal,
-  useColorScheme,
 } from "react-native";
 import { DateRangePicker } from "@/components/DateRangePicker";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -18,6 +17,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { Colors } from "@/constants/colors";
 import { useExpenses, useDeleteExpense } from "../../hooks/useApi";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { useColorScheme } from "@/hooks/useColorScheme";
 
 function getWeekBounds(offset: number) {
   const now = new Date();

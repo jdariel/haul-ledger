@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  useColorScheme,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -15,6 +14,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { Colors } from "@/constants/colors";
 import { useFuelEntries, useDeleteFuelEntry } from "@/hooks/useApi";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { useColorScheme } from "@/hooks/useColorScheme";
 
 const US_STATES = [
   "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA",

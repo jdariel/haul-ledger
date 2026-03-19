@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  useColorScheme,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,6 +15,7 @@ import { Colors } from "@/constants/colors";
 import { useIncome, useDeleteIncome } from "../../hooks/useApi";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DateRangePicker } from "@/components/DateRangePicker";
+import { useColorScheme } from "@/hooks/useColorScheme";
 
 function getWeekBounds(offset: number) {
   const now = new Date();

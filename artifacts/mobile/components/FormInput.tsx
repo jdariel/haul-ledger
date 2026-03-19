@@ -4,10 +4,10 @@ import {
   TextInput,
   TextInputProps,
   StyleSheet,
-  useColorScheme,
 } from "react-native";
 import { ThemedText } from "@/components/ThemedText";
 import { Colors } from "@/constants/colors";
+import { useColorScheme } from "@/hooks/useColorScheme";
 
 interface FormInputProps extends TextInputProps {
   label: string;

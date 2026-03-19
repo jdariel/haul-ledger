@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { useColorScheme } from "react-native";
+
 import { Feather } from "@expo/vector-icons";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
@@ -16,6 +16,7 @@ import { Colors } from "@/constants/colors";
 import { ThemedText } from "@/components/ThemedText";
 import { FormInput } from "@/components/FormInput";
 import { useCreateFuelEntry } from "@/hooks/useApi";
+import { useColorScheme } from "@/hooks/useColorScheme";
 
 export default function AddFuelScreen() {
   const colorScheme = useColorScheme();

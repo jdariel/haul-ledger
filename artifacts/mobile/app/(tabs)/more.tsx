@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Switch,
-  useColorScheme,
   TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -14,6 +13,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { Colors } from "@/constants/colors";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { useAppContext } from "@/context/AppContext";
+import { useColorScheme } from "@/hooks/useColorScheme";
 
 interface RowProps {
   icon: string;
@@ -65,8 +66,9 @@ const rowS = StyleSheet.create({
 export default function MoreScreen() {
   const colorScheme = useColorScheme();
   const C = Colors[colorScheme === "dark" ? "dark" : "light"];
-  const [mileTarget, setMileTarget] = useState("");
-  const [lightMode, setLightMode] = useState(colorScheme !== "dark");
+  const { settings, updateSettings } = useAppContext();
+  const isDark = settings.colorScheme === "dark";
+  const [mileTarget, setMileTarget] = useState(String(settings.mileageGoal || ""));
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
 
@@ -139,7 +141,7 @@ export default function MoreScreen() {
             />
             <TouchableOpacity
               style={[s.saveBtn, { backgroundColor: C.primary }]}
-              onPress={() => {}}
+              onPress={() => updateSettings({ mileageGoal: parseInt(mileTarget) || 0 })}
             >
               <Text style={s.saveBtnText}>Save</Text>
             </TouchableOpacity>
@@ -150,14 +152,19 @@ export default function MoreScreen() {
         <Text style={s.sectionLabel}>Preferences</Text>
         <View style={[s.card, { backgroundColor: C.card, borderColor: C.separator, padding: 0 }]}>
           <View style={[s.prefRow, { borderBottomWidth: 1, borderBottomColor: C.separator }]}>
-            <View style={[rowS.iconBox, { backgroundColor: "#fef9c3" }]}>
-              <Ionicons name="sunny-outline" size={19} color="#ca8a04" />
+            <View style={[rowS.iconBox, { backgroundColor: isDark ? "#1e293b" : "#fef9c3" }]}>
+              <Ionicons name={isDark ? "moon" : "sunny"} size={19} color={isDark ? "#818cf8" : "#ca8a04"} />
             </View>
-            <Text style={[s.prefLabel, { color: C.text }]}>Light Mode</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.prefLabel, { color: C.text }]}>Dark Mode</Text>
+              <Text style={[{ fontSize: 12, color: C.textSecondary, marginTop: 1 }]}>
+                {isDark ? "Dark theme active" : "Light theme active"}
+              </Text>
+            </View>
             <Switch
-              value={lightMode}
-              onValueChange={setLightMode}
-              trackColor={{ true: C.primary, false: C.separator }}
+              value={isDark}
+              onValueChange={(val) => updateSettings({ colorScheme: val ? "dark" : "light" })}
+              trackColor={{ true: "#6366f1", false: C.separator }}
               thumbColor="#fff"
             />
           </View>

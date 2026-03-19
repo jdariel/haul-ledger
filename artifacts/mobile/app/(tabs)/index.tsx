@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  useColorScheme,
   Modal,
   Animated,
   Pressable,
@@ -18,6 +17,7 @@ import { router } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { Colors } from "@/constants/colors";
 import { useSummary, useExpenses, useIncome } from "../../hooks/useApi";
+import { useColorScheme } from "@/hooks/useColorScheme";
 
 const TAB_BAR_HEIGHT = 56;
 

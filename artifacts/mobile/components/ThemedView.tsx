@@ -1,6 +1,7 @@
 import React from "react";
-import { View, ViewProps, useColorScheme } from "react-native";
+import { View, ViewProps } from "react-native";
 import { Colors } from "@/constants/colors";
+import { useColorScheme } from "@/hooks/useColorScheme";
 
 interface ThemedViewProps extends ViewProps {
   variant?: "background" | "card" | "secondary";
