@@ -1,9 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Platform } from "react-native";
-
-const BASE_URL = Platform.OS === "web"
-  ? "/api"
-  : `${process.env.EXPO_PUBLIC_DOMAIN ?? ""}/api`;
+import { API_BASE_URL as BASE_URL } from "@/constants/api";
 
 async function apiFetch(path: string, options?: RequestInit) {
   const url = `${BASE_URL}${path}`;
