@@ -57,6 +57,10 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen
+        name="fuel-log"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
         name="add-fuel"
         options={{
           presentation: "modal",

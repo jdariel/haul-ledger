@@ -225,7 +225,7 @@ export default function MoreScreen() {
             iconColor={C.orange}
             title="Fuel Log"
             subtitle="Track fuel purchases for IFTA"
-            onPress={() => router.push("/add-fuel")}
+            onPress={() => router.push("/fuel-log")}
             C={C}
           />
           <MenuItem
