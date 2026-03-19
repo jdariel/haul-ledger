@@ -28,4 +28,3 @@ timeoutMs = 20000
 [userenv]
 
 [userenv.shared]
-JWT_SECRET = "ee2d4c8ef5f00d8ef5d89c4f7d24d9cf3f447cbe2a5b5a1a88a777eb2d78a56dd2f94824414cb8d05f89ba0a054071a015824e48694db37ea23d2cf911503773"
