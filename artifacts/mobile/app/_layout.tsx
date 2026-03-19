@@ -10,7 +10,6 @@ import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { View, ActivityIndicator } from "react-native";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -101,9 +100,7 @@ export default function RootLayout() {
           <AppProvider>
             <AuthProvider>
               <GestureHandlerRootView style={{ flex: 1 }}>
-                <KeyboardProvider>
-                  <RootLayoutNav />
-                </KeyboardProvider>
+                <RootLayoutNav />
               </GestureHandlerRootView>
             </AuthProvider>
           </AppProvider>
