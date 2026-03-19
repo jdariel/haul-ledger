@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  Modal,
   useColorScheme,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -14,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { Colors } from "@/constants/colors";
 import { useSummary, useExpenses, useIncome } from "../../hooks/useApi";
+import { DateRangePicker } from "@/components/DateRangePicker";
 
 function fmtDate(d: Date) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -203,7 +203,7 @@ export default function ReportsScreen() {
           </View>
         </View>
 
-        {/* Date Range Picker */}
+        {/* Date Range Bar */}
         <TouchableOpacity
           style={[s.dateRow, { backgroundColor: C.card, borderColor: C.primary }]}
           onPress={() => setPickerVisible(true)}
@@ -217,6 +217,33 @@ export default function ReportsScreen() {
           </Text>
           <Ionicons name="chevron-down" size={14} color={C.primary} style={{ marginLeft: 6 }} />
         </TouchableOpacity>
+
+        {/* Quick Preset Chips */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.presetChips}>
+          {PRESETS.map((preset) => {
+            const active = preset.label === presetLabel;
+            return (
+              <TouchableOpacity
+                key={preset.label}
+                style={[
+                  s.presetChip,
+                  {
+                    backgroundColor: active ? C.primary : C.card,
+                    borderColor: active ? C.primary : C.separator,
+                  },
+                ]}
+                onPress={() => {
+                  setPresetLabel(preset.label);
+                  setDateRange(preset.getRange());
+                }}
+              >
+                <Text style={[s.presetChipText, { color: active ? "#fff" : C.textSecondary }]}>
+                  {preset.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
 
         {/* Segment Tabs */}
         <View style={[s.segmentWrap, { backgroundColor: C.card, borderColor: C.separator }]}>
@@ -363,52 +390,17 @@ export default function ReportsScreen() {
         )}
       </ScrollView>
 
-      {/* Date Range Picker Modal */}
-      <Modal
+      <DateRangePicker
         visible={pickerVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setPickerVisible(false)}
-      >
-        <TouchableOpacity
-          style={s.pickerOverlay}
-          activeOpacity={1}
-          onPress={() => setPickerVisible(false)}
-        >
-          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
-            <View style={[s.pickerSheet, { backgroundColor: C.card }]}>
-              <View style={[s.pickerHandle, { backgroundColor: C.separator }]} />
-              <Text style={[s.pickerTitle, { color: C.text }]}>Select Date Range</Text>
-              <View style={s.presetGrid}>
-                {PRESETS.map((preset) => {
-                  const active = preset.label === presetLabel;
-                  return (
-                    <TouchableOpacity
-                      key={preset.label}
-                      style={[
-                        s.presetBtn,
-                        {
-                          backgroundColor: active ? C.primary : C.background,
-                          borderColor: active ? C.primary : C.separator,
-                        },
-                      ]}
-                      onPress={() => {
-                        setPresetLabel(preset.label);
-                        setDateRange(preset.getRange());
-                        setPickerVisible(false);
-                      }}
-                    >
-                      <Text style={[s.presetBtnText, { color: active ? "#fff" : C.text }]}>
-                        {preset.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
+        initialStart={dateRange.start}
+        initialEnd={dateRange.end}
+        onApply={(start, end) => {
+          setDateRange({ start, end });
+          setPresetLabel("Custom");
+          setPickerVisible(false);
+        }}
+        onCancel={() => setPickerVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -516,37 +508,13 @@ function makeStyles(C: typeof Colors.light) {
     txName: { fontSize: 14, fontWeight: "500", flex: 1 },
     txAmt: { fontSize: 14, fontWeight: "700" },
     moreText: { fontSize: 12, textAlign: "center", paddingTop: 10 },
-    pickerOverlay: {
-      flex: 1,
-      backgroundColor: "rgba(0,0,0,0.4)",
-      justifyContent: "flex-end",
-    },
-    pickerSheet: {
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      padding: 20,
-      paddingBottom: 36,
-      gap: 16,
-    },
-    pickerHandle: {
-      width: 36,
-      height: 4,
-      borderRadius: 2,
-      alignSelf: "center",
-      marginBottom: 4,
-    },
-    pickerTitle: { fontSize: 17, fontWeight: "700", textAlign: "center" },
-    presetGrid: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 10,
-    },
-    presetBtn: {
-      paddingHorizontal: 16,
-      paddingVertical: 10,
-      borderRadius: 12,
+    presetChips: { paddingHorizontal: 20, gap: 8 },
+    presetChip: {
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 20,
       borderWidth: 1.5,
     },
-    presetBtnText: { fontSize: 14, fontWeight: "600" },
+    presetChipText: { fontSize: 13, fontWeight: "600" },
   });
 }

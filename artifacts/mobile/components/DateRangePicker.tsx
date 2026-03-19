@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Modal,
+  ScrollView,
   useColorScheme,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -12,27 +13,18 @@ import { Colors } from "@/constants/colors";
 
 const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
+  "January","February","March","April","May","June",
+  "July","August","September","October","November","December",
 ];
+const SHORT_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 function sameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() &&
     a.getMonth() === b.getMonth() &&
     a.getDate() === b.getDate();
 }
-
-function startOfDay(d: Date) {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
-}
-
-function endOfDay(d: Date) {
-  const x = new Date(d);
-  x.setHours(23, 59, 59, 999);
-  return x;
-}
+function startOfDay(d: Date) { const x = new Date(d); x.setHours(0,0,0,0); return x; }
+function endOfDay(d: Date) { const x = new Date(d); x.setHours(23,59,59,999); return x; }
 
 type Props = {
   visible: boolean;
@@ -52,6 +44,8 @@ export function DateRangePicker({ visible, initialStart, initialEnd, onApply, on
   const [pickStart, setPickStart] = useState<Date | null>(initialStart ?? null);
   const [pickEnd, setPickEnd] = useState<Date | null>(initialEnd ?? null);
   const [step, setStep] = useState<"start" | "end">("start");
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
+  const [showYearPicker, setShowYearPicker] = useState(false);
 
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
   const firstDow = new Date(viewYear, viewMonth, 1).getDay();
@@ -73,8 +67,8 @@ export function DateRangePicker({ visible, initialStart, initialEnd, onApply, on
       setStep("end");
     } else {
       if (pickStart && d < pickStart) {
-        setPickStart(d);
         setPickEnd(pickStart);
+        setPickStart(d);
       } else {
         setPickEnd(d);
       }
@@ -84,9 +78,7 @@ export function DateRangePicker({ visible, initialStart, initialEnd, onApply, on
 
   const handleApply = () => {
     if (!pickStart) return;
-    const s = startOfDay(pickStart);
-    const e = pickEnd ? endOfDay(pickEnd) : endOfDay(pickStart);
-    onApply(s, e);
+    onApply(startOfDay(pickStart), pickEnd ? endOfDay(pickEnd) : endOfDay(pickStart));
   };
 
   const s = makeStyles(C);
@@ -95,46 +87,117 @@ export function DateRangePicker({ visible, initialStart, initialEnd, onApply, on
   for (let i = 1; i <= daysInMonth; i++) cells.push(i);
   while (cells.length % 7 !== 0) cells.push(null);
 
-  const fmt = (d: Date | null) =>
-    d ? d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
+  const fmtInput = (d: Date | null) =>
+    d ? `${SHORT_MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}` : "Select date";
+
+  const yearRange = Array.from({ length: 10 }, (_, i) => today.getFullYear() - 5 + i);
+
+  if (!visible) return null;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
       <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={onCancel}>
         <TouchableOpacity activeOpacity={1} onPress={() => {}}>
           <View style={[s.sheet, { backgroundColor: C.card }]}>
-            {/* Handle */}
             <View style={[s.handle, { backgroundColor: C.separator }]} />
 
-            {/* Title + step hint */}
-            <Text style={[s.title, { color: C.text }]}>Select Date Range</Text>
-            <Text style={[s.hint, { color: C.primary }]}>
-              {step === "start" ? "Tap a start date" : "Tap an end date"}
-            </Text>
+            {/* Two Date Input Boxes */}
+            <View style={s.inputRow}>
+              <TouchableOpacity
+                style={[
+                  s.dateInput,
+                  {
+                    borderColor: step === "start" ? C.primary : C.separator,
+                    backgroundColor: step === "start" ? C.primary + "0f" : C.background,
+                  },
+                ]}
+                onPress={() => setStep("start")}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="calendar-outline" size={14} color={C.primary} />
+                <Text style={[s.dateInputText, { color: pickStart ? C.text : C.textMuted }]}>
+                  {fmtInput(pickStart)}
+                </Text>
+              </TouchableOpacity>
 
-            {/* Selected range display */}
-            <View style={[s.rangeRow, { backgroundColor: C.background, borderColor: C.separator }]}>
-              <View style={s.rangeItem}>
-                <Text style={[s.rangeLabel, { color: C.textSecondary }]}>FROM</Text>
-                <Text style={[s.rangeVal, { color: pickStart ? C.primary : C.textMuted }]}>{fmt(pickStart)}</Text>
-              </View>
-              <Ionicons name="arrow-forward" size={14} color={C.textMuted} />
-              <View style={s.rangeItem}>
-                <Text style={[s.rangeLabel, { color: C.textSecondary }]}>TO</Text>
-                <Text style={[s.rangeVal, { color: pickEnd ? C.primary : C.textMuted }]}>{fmt(pickEnd)}</Text>
-              </View>
+              <Ionicons name="arrow-forward" size={16} color={C.textMuted} />
+
+              <TouchableOpacity
+                style={[
+                  s.dateInput,
+                  {
+                    borderColor: step === "end" ? C.primary : C.separator,
+                    backgroundColor: step === "end" ? C.primary + "0f" : C.background,
+                  },
+                ]}
+                onPress={() => { if (pickStart) setStep("end"); }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="calendar-outline" size={14} color={C.primary} />
+                <Text style={[s.dateInputText, { color: pickEnd ? C.text : C.textMuted }]}>
+                  {fmtInput(pickEnd)}
+                </Text>
+              </TouchableOpacity>
             </View>
 
-            {/* Month nav */}
+            {/* Month / Year header */}
             <View style={s.monthNav}>
               <TouchableOpacity onPress={prevMonth} style={s.navBtn}>
-                <Ionicons name="chevron-back" size={20} color={C.text} />
+                <Ionicons name="chevron-back" size={18} color={C.text} />
               </TouchableOpacity>
-              <Text style={[s.monthLabel, { color: C.text }]}>{MONTHS[viewMonth]} {viewYear}</Text>
+
+              <View style={s.monthYearGroup}>
+                <TouchableOpacity
+                  style={[s.dropBtn, { borderColor: C.separator }]}
+                  onPress={() => { setShowMonthPicker(!showMonthPicker); setShowYearPicker(false); }}
+                >
+                  <Text style={[s.dropBtnText, { color: C.text }]}>{MONTHS[viewMonth]}</Text>
+                  <Ionicons name="chevron-down" size={13} color={C.textSecondary} />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[s.dropBtn, { borderColor: C.separator }]}
+                  onPress={() => { setShowYearPicker(!showYearPicker); setShowMonthPicker(false); }}
+                >
+                  <Text style={[s.dropBtnText, { color: C.text }]}>{viewYear}</Text>
+                  <Ionicons name="chevron-down" size={13} color={C.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
               <TouchableOpacity onPress={nextMonth} style={s.navBtn}>
-                <Ionicons name="chevron-forward" size={20} color={C.text} />
+                <Ionicons name="chevron-forward" size={18} color={C.text} />
               </TouchableOpacity>
             </View>
+
+            {/* Month Dropdown */}
+            {showMonthPicker && (
+              <View style={[s.dropdown, { backgroundColor: C.card, borderColor: C.separator }]}>
+                {MONTHS.map((m, i) => (
+                  <TouchableOpacity
+                    key={m}
+                    style={[s.dropItem, i === viewMonth && { backgroundColor: C.primary + "20" }]}
+                    onPress={() => { setViewMonth(i); setShowMonthPicker(false); }}
+                  >
+                    <Text style={[s.dropItemText, { color: i === viewMonth ? C.primary : C.text }]}>{m}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            {/* Year Dropdown */}
+            {showYearPicker && (
+              <View style={[s.dropdown, { backgroundColor: C.card, borderColor: C.separator }]}>
+                {yearRange.map(y => (
+                  <TouchableOpacity
+                    key={y}
+                    style={[s.dropItem, y === viewYear && { backgroundColor: C.primary + "20" }]}
+                    onPress={() => { setViewYear(y); setShowYearPicker(false); }}
+                  >
+                    <Text style={[s.dropItemText, { color: y === viewYear ? C.primary : C.text }]}>{y}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
 
             {/* Weekday headers */}
             <View style={s.weekRow}>
@@ -157,12 +220,17 @@ export function DateRangePicker({ visible, initialStart, initialEnd, onApply, on
                 const isToday = sameDay(thisDate, today);
                 const isSelected = isStart || isEnd;
 
+                const isStartEdge = isStart && !!pickEnd;
+                const isEndEdge = isEnd && !!pickStart;
+
                 return (
                   <TouchableOpacity
                     key={day}
                     style={[
                       s.cell,
-                      inRange && { backgroundColor: C.primary + "22" },
+                      inRange && { backgroundColor: C.primary + "18" },
+                      isStartEdge && { borderTopLeftRadius: 20, borderBottomLeftRadius: 20, backgroundColor: C.primary + "18" },
+                      isEndEdge && { borderTopRightRadius: 20, borderBottomRightRadius: 20, backgroundColor: C.primary + "18" },
                     ]}
                     onPress={() => handleDayPress(day)}
                     activeOpacity={0.7}
@@ -186,6 +254,11 @@ export function DateRangePicker({ visible, initialStart, initialEnd, onApply, on
                 );
               })}
             </View>
+
+            {/* Hint */}
+            <Text style={[s.hint, { color: C.textMuted }]}>
+              {step === "start" ? "Tap a start date on the calendar" : "Now tap an end date"}
+            </Text>
 
             {/* Buttons */}
             <View style={s.btnRow}>
@@ -220,36 +293,64 @@ function makeStyles(C: typeof Colors.light) {
     sheet: {
       borderTopLeftRadius: 24,
       borderTopRightRadius: 24,
-      padding: 20,
-      paddingBottom: 36,
-      gap: 12,
+      padding: 18,
+      paddingBottom: 34,
+      gap: 10,
     },
-    handle: { width: 36, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 4 },
-    title: { fontSize: 18, fontWeight: "800", textAlign: "center" },
-    hint: { fontSize: 13, fontWeight: "600", textAlign: "center", marginTop: -4 },
-    rangeRow: {
+    handle: { width: 36, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 2 },
+
+    inputRow: {
       flexDirection: "row",
       alignItems: "center",
-      justifyContent: "space-between",
-      borderRadius: 12,
-      borderWidth: 1,
-      paddingHorizontal: 16,
-      paddingVertical: 12,
       gap: 8,
     },
-    rangeItem: { flex: 1, alignItems: "center", gap: 2 },
-    rangeLabel: { fontSize: 10, fontWeight: "700", letterSpacing: 0.8 },
-    rangeVal: { fontSize: 13, fontWeight: "600" },
+    dateInput: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      borderWidth: 1.5,
+      borderRadius: 10,
+      paddingHorizontal: 10,
+      paddingVertical: 9,
+    },
+    dateInputText: { fontSize: 12, fontWeight: "600", flex: 1 },
+
     monthNav: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      paddingHorizontal: 4,
+      paddingHorizontal: 2,
+      marginTop: 2,
     },
-    navBtn: { padding: 8 },
-    monthLabel: { fontSize: 16, fontWeight: "700" },
-    weekRow: { flexDirection: "row" },
-    weekday: { flex: 1, textAlign: "center", fontSize: 12, fontWeight: "600" },
+    navBtn: { padding: 6 },
+    monthYearGroup: { flexDirection: "row", gap: 8, alignItems: "center" },
+    dropBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      borderWidth: 1,
+      borderRadius: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+    },
+    dropBtnText: { fontSize: 15, fontWeight: "700" },
+
+    dropdown: {
+      borderWidth: 1,
+      borderRadius: 12,
+      maxHeight: 180,
+      overflow: "hidden",
+    },
+    dropItem: {
+      paddingHorizontal: 16,
+      paddingVertical: 9,
+    },
+    dropItemText: { fontSize: 14, fontWeight: "500" },
+
+    weekRow: { flexDirection: "row", marginTop: 2 },
+    weekday: { flex: 1, textAlign: "center", fontSize: 12, fontWeight: "600", paddingVertical: 4 },
+
     grid: { flexDirection: "row", flexWrap: "wrap" },
     cell: {
       width: `${100 / 7}%`,
@@ -265,14 +366,12 @@ function makeStyles(C: typeof Colors.light) {
       justifyContent: "center",
     },
     dayText: { fontSize: 14, fontWeight: "500" },
-    todayDot: { width: 4, height: 4, borderRadius: 2, marginTop: 1 },
-    btnRow: { flexDirection: "row", gap: 12, marginTop: 4 },
-    btn: {
-      flex: 1,
-      paddingVertical: 14,
-      borderRadius: 14,
-      alignItems: "center",
-    },
+    todayDot: { width: 4, height: 4, borderRadius: 2, position: "absolute", bottom: 4 },
+
+    hint: { fontSize: 12, textAlign: "center" },
+
+    btnRow: { flexDirection: "row", gap: 10, marginTop: 2 },
+    btn: { flex: 1, paddingVertical: 13, borderRadius: 12, alignItems: "center" },
     cancelBtn: { borderWidth: 1.5 },
     applyBtn: {},
     btnText: { fontSize: 15, fontWeight: "700" },
