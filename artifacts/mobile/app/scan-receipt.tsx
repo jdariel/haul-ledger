@@ -18,9 +18,30 @@ import { useColorScheme } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system";
 import { Ionicons } from "@expo/vector-icons";
+
 import { Colors } from "@/constants/colors";
 import { useCreateExpense } from "@/hooks/useApi";
 import { API_BASE_URL } from "@/constants/api";
+
+async function uriToBase64(uri: string): Promise<string> {
+  if (uri.startsWith("data:")) {
+    return uri.split(",")[1] ?? "";
+  }
+  if (typeof FileSystem.readAsStringAsync === "function") {
+    return FileSystem.readAsStringAsync(uri, { encoding: "base64" as never });
+  }
+  const response = await fetch(uri);
+  const blob = await response.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result as string;
+      resolve(result.split(",")[1] ?? "");
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
 
 const CATEGORIES = ["Fuel", "Maintenance", "Lumper", "Tolls", "Parking", "Scale Fee", "Other"];
 
@@ -83,9 +104,7 @@ export default function ScanReceiptScreen() {
   const processReceipt = async (uri: string) => {
     try {
       setScanStatus("uploading");
-      const base64 = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
+      const base64 = await uriToBase64(uri);
 
       setScanStatus("analyzing");
       const response = await fetch(`${API_BASE_URL}/receipts/process`, {
