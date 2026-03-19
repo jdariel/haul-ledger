@@ -10,6 +10,7 @@ import quickExpensesRouter from "./quickExpenses";
 import summaryRouter from "./summary";
 import receiptsRouter from "./receipts";
 import storageRouter from "./storage";
+import iftaRouter from "./ifta";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use("/quick-expenses", quickExpensesRouter);
 router.use("/summary", summaryRouter);
 router.use("/receipts", receiptsRouter);
 router.use(storageRouter);
+router.use("/ifta", iftaRouter);
 
 export default router;

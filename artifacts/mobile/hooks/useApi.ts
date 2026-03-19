@@ -252,3 +252,10 @@ export function useDeleteQuickExpense() {
     },
   });
 }
+
+export function useIFTA(quarter: number, year: number) {
+  return useQuery({
+    queryKey: ["ifta", quarter, year],
+    queryFn: () => apiFetch(`/ifta?quarter=${quarter}&year=${year}`),
+  });
+}

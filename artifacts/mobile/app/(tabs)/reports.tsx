@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
+import { router } from "expo-router";
 import { Colors } from "@/constants/colors";
 import { useSummary, useExpenses, useIncome } from "../../hooks/useApi";
 import { DateRangePicker } from "@/components/DateRangePicker";
@@ -196,9 +197,12 @@ export default function ReportsScreen() {
         <View style={s.header}>
           <Text style={s.title}>Reports</Text>
           <View style={s.headerBtns}>
-            <TouchableOpacity style={[s.headerBtn, { borderColor: C.separator, backgroundColor: C.card }]}>
-              <Ionicons name="document-text-outline" size={14} color={C.text} />
-              <Text style={[s.headerBtnText, { color: C.text }]}>IFTA</Text>
+            <TouchableOpacity
+              style={[s.headerBtn, { borderColor: C.primary, backgroundColor: C.primary + "12" }]}
+              onPress={() => router.push("/ifta")}
+            >
+              <Ionicons name="document-text-outline" size={14} color={C.primary} />
+              <Text style={[s.headerBtnText, { color: C.primary }]}>IFTA</Text>
             </TouchableOpacity>
           </View>
         </View>
