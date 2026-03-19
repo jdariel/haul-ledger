@@ -9,7 +9,6 @@ import {
   Modal,
   ActivityIndicator,
   useColorScheme,
-  Alert,
   Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -18,6 +17,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { Platform } from "react-native";
 import { Colors } from "@/constants/colors";
 import { useExpense, useDeleteExpense } from "@/hooks/useApi";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 const BASE_URL =
   Platform.OS === "web"
@@ -71,24 +71,12 @@ export default function ExpenseDetailScreen() {
   const deleteExpense = useDeleteExpense();
   const [imageModalVisible, setImageModalVisible] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const s = makeStyles(C);
   const { width, height } = Dimensions.get("window");
 
-  const handleDelete = () => {
-    Alert.alert("Delete Expense", "Remove this expense permanently?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: () => {
-          deleteExpense.mutate(parseInt(id!), {
-            onSuccess: () => router.back(),
-          });
-        },
-      },
-    ]);
-  };
+  const handleDelete = () => setConfirmDelete(true);
 
   if (isLoading) {
     return (
@@ -269,6 +257,17 @@ export default function ExpenseDetailScreen() {
           </View>
         </Modal>
       )}
+      <ConfirmDialog
+        visible={confirmDelete}
+        title="Delete Expense"
+        message="Remove this expense permanently?"
+        onConfirm={() => {
+          deleteExpense.mutate(parseInt(id!), {
+            onSuccess: () => { setConfirmDelete(false); router.back(); },
+          });
+        }}
+        onCancel={() => setConfirmDelete(false)}
+      />
     </SafeAreaView>
   );
 }

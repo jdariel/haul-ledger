@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  Alert,
   useColorScheme,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -15,6 +14,7 @@ import { router } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { Colors } from "@/constants/colors";
 import { useFuelEntries, useDeleteFuelEntry } from "@/hooks/useApi";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 const US_STATES = [
   "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA",
@@ -32,6 +32,7 @@ export default function FuelLogScreen() {
   const colorScheme = useColorScheme();
   const C = Colors[colorScheme === "dark" ? "dark" : "light"];
   const [refreshing, setRefreshing] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const { data: entries, refetch } = useFuelEntries();
   const deleteFuel = useDeleteFuelEntry();
@@ -42,17 +43,6 @@ export default function FuelLogScreen() {
     setRefreshing(true);
     await refetch();
     setRefreshing(false);
-  };
-
-  const handleDelete = (id: number) => {
-    Alert.alert("Delete Entry", "Remove this fuel entry?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: () => deleteFuel.mutate(id, { onSuccess: () => refetch() }),
-      },
-    ]);
   };
 
   const sorted = [...(entries ?? [])].sort(
@@ -156,7 +146,7 @@ export default function FuelLogScreen() {
                   </View>
                   <Text style={[s.date, { color: C.textMuted }]}>{fmtDate(e.date)}</Text>
                 </View>
-                <TouchableOpacity onPress={() => handleDelete(e.id)} style={s.deleteBtn}>
+                <TouchableOpacity onPress={() => setDeleteId(e.id)} style={s.deleteBtn}>
                   <Ionicons name="trash-outline" size={15} color={C.textMuted} />
                 </TouchableOpacity>
               </View>
@@ -164,6 +154,17 @@ export default function FuelLogScreen() {
           </View>
         )}
       </ScrollView>
+      <ConfirmDialog
+        visible={deleteId !== null}
+        title="Delete Fuel Entry"
+        message="Remove this fuel entry permanently?"
+        onConfirm={() => {
+          if (deleteId !== null) {
+            deleteFuel.mutate(deleteId, { onSuccess: () => { refetch(); setDeleteId(null); } });
+          }
+        }}
+        onCancel={() => setDeleteId(null)}
+      />
     </SafeAreaView>
   );
 }

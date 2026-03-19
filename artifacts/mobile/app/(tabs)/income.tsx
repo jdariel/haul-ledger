@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  Alert,
   useColorScheme,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -15,6 +14,7 @@ import { router } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { Colors } from "@/constants/colors";
 import { useIncome, useDeleteIncome } from "../../hooks/useApi";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 function getWeekBounds(offset: number) {
   const now = new Date();
@@ -37,6 +37,7 @@ export default function IncomeScreen() {
   const C = Colors[colorScheme === "dark" ? "dark" : "light"];
   const [weekOffset, setWeekOffset] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const { data: income, refetch } = useIncome();
   const deleteIncome = useDeleteIncome();
@@ -59,17 +60,6 @@ export default function IncomeScreen() {
   });
 
   const weekTotal = weekIncome.reduce((sum: number, i: any) => sum + Number(i.amount), 0);
-
-  const handleDelete = (id: number) => {
-    Alert.alert("Delete Income", "Remove this income entry?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: () => deleteIncome.mutate(id, { onSuccess: () => refetch() }),
-      },
-    ]);
-  };
 
   const s = makeStyles(C);
 
@@ -140,7 +130,7 @@ export default function IncomeScreen() {
                 </View>
                 <View style={s.right}>
                   <Text style={[s.amt, { color: C.green }]}>+${Number(item.amount).toFixed(2)}</Text>
-                  <TouchableOpacity onPress={() => handleDelete(item.id)} style={s.deleteBtn}>
+                  <TouchableOpacity onPress={() => setDeleteId(item.id)} style={s.deleteBtn}>
                     <Ionicons name="trash-outline" size={15} color={C.textMuted} />
                   </TouchableOpacity>
                 </View>
@@ -149,6 +139,17 @@ export default function IncomeScreen() {
           </View>
         )}
       </ScrollView>
+      <ConfirmDialog
+        visible={deleteId !== null}
+        title="Delete Income"
+        message="Remove this income entry?"
+        onConfirm={() => {
+          if (deleteId !== null) {
+            deleteIncome.mutate(deleteId, { onSuccess: () => { refetch(); setDeleteId(null); } });
+          }
+        }}
+        onCancel={() => setDeleteId(null)}
+      />
     </SafeAreaView>
   );
 }

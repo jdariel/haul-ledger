@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   TextInput,
   RefreshControl,
-  Alert,
   useColorScheme,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -16,6 +15,7 @@ import { router } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { Colors } from "@/constants/colors";
 import { useExpenses, useDeleteExpense } from "../../hooks/useApi";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 function getWeekBounds(offset: number) {
   const now = new Date();
@@ -53,6 +53,7 @@ export default function ExpensesScreen() {
   const [weekOffset, setWeekOffset] = useState(0);
   const [filterCategory, setFilterCategory] = useState("All");
   const [refreshing, setRefreshing] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const { data: expenses, refetch } = useExpenses();
   const deleteExpense = useDeleteExpense();
@@ -82,16 +83,6 @@ export default function ExpensesScreen() {
   const isCurrentWeek = weekOffset === 0;
   const weekLabel = isCurrentWeek ? "This Week" : weekOffset === -1 ? "Last Week" : `${weekOffset < 0 ? "Past" : "Future"}`;
 
-  const handleDelete = (id: number) => {
-    Alert.alert("Delete Expense", "Remove this expense?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: () => deleteExpense.mutate(id, { onSuccess: () => refetch() }),
-      },
-    ]);
-  };
 
   const s = makeStyles(C);
 
@@ -214,7 +205,7 @@ export default function ExpensesScreen() {
                       {e.receiptUrl && (
                         <Ionicons name="receipt" size={13} color={C.primary} style={{ marginRight: 4 }} />
                       )}
-                      <TouchableOpacity onPress={(ev) => { ev.stopPropagation(); handleDelete(e.id); }} style={s.deleteBtn}>
+                      <TouchableOpacity onPress={() => setDeleteId(e.id)} style={s.deleteBtn}>
                         <Ionicons name="trash-outline" size={15} color={C.textMuted} />
                       </TouchableOpacity>
                     </View>
@@ -225,6 +216,17 @@ export default function ExpensesScreen() {
           </View>
         )}
       </ScrollView>
+      <ConfirmDialog
+        visible={deleteId !== null}
+        title="Delete Expense"
+        message="Remove this expense permanently?"
+        onConfirm={() => {
+          if (deleteId !== null) {
+            deleteExpense.mutate(deleteId, { onSuccess: () => { refetch(); setDeleteId(null); } });
+          }
+        }}
+        onCancel={() => setDeleteId(null)}
+      />
     </SafeAreaView>
   );
 }
