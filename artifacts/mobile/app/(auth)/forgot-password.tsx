@@ -119,8 +119,8 @@ export default function ForgotPasswordScreen() {
       setError("Please fill in both password fields.");
       return;
     }
-    if (newPassword.length < 6) {
-      setError("Password must be at least 6 characters.");
+    if (newPassword.length < 8) {
+      setError("Password must be at least 8 characters.");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -325,7 +325,7 @@ export default function ForgotPasswordScreen() {
                   <Ionicons name="lock-closed-outline" size={18} color={C.textMuted} style={s.inputIcon} />
                   <TextInput
                     style={[s.input, { color: C.text }]}
-                    placeholder="Min. 6 characters"
+                    placeholder="Min. 8 characters"
                     placeholderTextColor={C.textMuted}
                     value={newPassword}
                     onChangeText={setNewPassword}

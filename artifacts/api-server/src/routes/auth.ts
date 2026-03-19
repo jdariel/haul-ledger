@@ -5,17 +5,21 @@ import { Resend } from "resend";
 import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
+import { authLimiter } from "../middleware/rateLimits";
+import { requireAuth } from "../middleware/auth";
 
 const router = Router();
 
-const JWT_SECRET = process.env.JWT_SECRET || "haul-ledger-dev-secret-key-2025";
-const JWT_EXPIRES = "30d";
+const JWT_SECRET = process.env.JWT_SECRET!;
+if (!JWT_SECRET) throw new Error("JWT_SECRET environment variable is required.");
 
+const JWT_EXPIRES = "30d";
+const MIN_PASSWORD_LENGTH = 8;
 const FROM_EMAIL = "HaulLedger <onboarding@resend.dev>";
 
 function getResend() {
   const key = process.env.RESEND_API_KEY;
-  if (!key) throw new Error("RESEND_API_KEY is not configured. Connect Resend in the integrations panel.");
+  if (!key) throw new Error("RESEND_API_KEY is not configured.");
   return new Resend(key);
 }
 
@@ -23,7 +27,16 @@ function signToken(payload: { id: number; email: string; name: string }) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES });
 }
 
-// ── In-memory token stores (short-lived, no DB migration needed) ──────────────
+function sanitizeEmail(email: unknown): string {
+  if (typeof email !== "string") throw new Error("Invalid email.");
+  return email.trim().toLowerCase();
+}
+
+function validateEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+// ── In-memory OTP + reset token stores ───────────────────────────────────────
 
 interface OtpEntry {
   code: string;
@@ -36,94 +49,107 @@ interface ResetEntry {
   expiresAt: Date;
 }
 
-// email → OTP entry
 const otpStore = new Map<string, OtpEntry>();
-// resetToken → reset entry
 const resetStore = new Map<string, ResetEntry>();
 
-// Cleanup expired entries every 10 minutes
 setInterval(() => {
   const now = new Date();
   for (const [k, v] of otpStore) if (v.expiresAt < now) otpStore.delete(k);
   for (const [k, v] of resetStore) if (v.expiresAt < now) resetStore.delete(k);
 }, 10 * 60 * 1000);
 
-function generateOtp() {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+// Cryptographically secure 6-digit OTP
+function generateOtp(): string {
+  return crypto.randomInt(100000, 999999).toString();
 }
 
 // ── Auth routes ───────────────────────────────────────────────────────────────
 
 // POST /api/auth/register
-router.post("/register", async (req, res) => {
+router.post("/register", authLimiter, async (req, res) => {
   try {
-    const { name, email, password } = req.body;
-    if (!name || !email || !password) {
-      return res.status(400).json({ error: "Name, email, and password are required." });
-    }
-    if (password.length < 6) {
-      return res.status(400).json({ error: "Password must be at least 6 characters." });
+    const { name, password } = req.body;
+    let email: string;
+    try { email = sanitizeEmail(req.body.email); } catch {
+      return res.status(400).json({ error: "A valid email address is required." });
     }
 
-    const existing = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
+    if (!name || typeof name !== "string" || name.trim().length < 2) {
+      return res.status(400).json({ error: "Name must be at least 2 characters." });
+    }
+    if (!validateEmail(email)) {
+      return res.status(400).json({ error: "Please enter a valid email address." });
+    }
+    if (!password || typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH) {
+      return res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.` });
+    }
+
+    const existing = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, email));
     if (existing.length > 0) {
       return res.status(409).json({ error: "An account with this email already exists." });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, 12);
     const [user] = await db
       .insert(usersTable)
-      .values({ name, email: email.toLowerCase(), passwordHash })
+      .values({ name: name.trim(), email, passwordHash })
       .returning();
 
     const token = signToken({ id: user.id, email: user.email, name: user.name });
     res.status(201).json({ token, user: { id: user.id, name: user.name, email: user.email } });
-  } catch (err) {
-    console.error(err);
+  } catch {
     res.status(500).json({ error: "Registration failed. Please try again." });
   }
 });
 
 // POST /api/auth/login
-router.post("/login", async (req, res) => {
+router.post("/login", authLimiter, async (req, res) => {
   try {
-    const { email, password } = req.body;
-    if (!email || !password) {
+    let email: string;
+    try { email = sanitizeEmail(req.body.email); } catch {
+      return res.status(400).json({ error: "Email and password are required." });
+    }
+    const { password } = req.body;
+    if (!password) {
       return res.status(400).json({ error: "Email and password are required." });
     }
 
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
-    if (!user) return res.status(401).json({ error: "Invalid email or password." });
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email));
+    // Use constant-time compare even on not-found to prevent timing attacks
+    const dummyHash = "$2b$12$notarealhashatallXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
+    const valid = user
+      ? await bcrypt.compare(password, user.passwordHash)
+      : await bcrypt.compare(password, dummyHash).then(() => false);
 
-    const valid = await bcrypt.compare(password, user.passwordHash);
-    if (!valid) return res.status(401).json({ error: "Invalid email or password." });
+    if (!user || !valid) {
+      return res.status(401).json({ error: "Invalid email or password." });
+    }
 
     const token = signToken({ id: user.id, email: user.email, name: user.name });
     res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
-  } catch (err) {
-    console.error(err);
+  } catch {
     res.status(500).json({ error: "Login failed. Please try again." });
   }
 });
 
-// POST /api/auth/forgot-password  — sends a 6-digit OTP to the user's email
-router.post("/forgot-password", async (req, res) => {
+// POST /api/auth/forgot-password
+router.post("/forgot-password", authLimiter, async (req, res) => {
   try {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ error: "Email is required." });
+    let email: string;
+    try { email = sanitizeEmail(req.body.email); } catch {
+      return res.status(400).json({ error: "A valid email is required." });
+    }
 
     const [user] = await db
       .select({ id: usersTable.id, name: usersTable.name })
       .from(usersTable)
-      .where(eq(usersTable.email, email.toLowerCase()));
+      .where(eq(usersTable.email, email));
 
-    // Always return success even if email not found — prevents email enumeration
-    if (!user) {
-      return res.json({ sent: true });
-    }
+    // Always return success to prevent email enumeration
+    if (!user) return res.json({ sent: true });
 
-    // Rate-limit: block if a valid OTP already exists and was sent < 60s ago
-    const existing = otpStore.get(email.toLowerCase());
+    // Rate-limit: block if sent < 60s ago
+    const existing = otpStore.get(email);
     const now = new Date();
     if (existing && existing.expiresAt > now) {
       const ageMs = 15 * 60 * 1000 - (existing.expiresAt.getTime() - now.getTime());
@@ -133,8 +159,7 @@ router.post("/forgot-password", async (req, res) => {
     }
 
     const code = generateOtp();
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
-    otpStore.set(email.toLowerCase(), { code, expiresAt, attempts: 0 });
+    otpStore.set(email, { code, expiresAt: new Date(Date.now() + 15 * 60 * 1000), attempts: 0 });
 
     await getResend().emails.send({
       from: FROM_EMAIL,
@@ -156,59 +181,63 @@ router.post("/forgot-password", async (req, res) => {
     });
 
     res.json({ sent: true });
-  } catch (err) {
-    console.error("forgot-password error:", err);
+  } catch {
     res.status(500).json({ error: "Failed to send reset code. Please try again." });
   }
 });
 
-// POST /api/auth/verify-otp  — verifies the 6-digit code, returns a short-lived resetToken
-router.post("/verify-otp", async (req, res) => {
+// POST /api/auth/verify-otp
+router.post("/verify-otp", authLimiter, async (req, res) => {
   try {
-    const { email, code } = req.body;
-    if (!email || !code) {
+    let email: string;
+    try { email = sanitizeEmail(req.body.email); } catch {
       return res.status(400).json({ error: "Email and code are required." });
     }
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ error: "Email and code are required." });
 
-    const entry = otpStore.get(email.toLowerCase());
+    const entry = otpStore.get(email);
     if (!entry || entry.expiresAt < new Date()) {
       return res.status(400).json({ error: "This code has expired. Please request a new one." });
     }
 
     entry.attempts += 1;
     if (entry.attempts > 5) {
-      otpStore.delete(email.toLowerCase());
+      otpStore.delete(email);
       return res.status(429).json({ error: "Too many incorrect attempts. Please request a new code." });
     }
 
-    if (entry.code !== code.trim()) {
+    // Constant-time comparison to prevent timing attacks
+    const expected = Buffer.from(entry.code);
+    const received = Buffer.from(code.trim().padEnd(entry.code.length));
+    const match = expected.length === received.length && crypto.timingSafeEqual(expected, received);
+
+    if (!match) {
       const remaining = 5 - entry.attempts;
       return res.status(400).json({
         error: `Incorrect code. ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.`,
       });
     }
 
-    // Code is correct — invalidate OTP and issue a one-time resetToken
-    otpStore.delete(email.toLowerCase());
+    otpStore.delete(email);
     const resetToken = crypto.randomBytes(32).toString("hex");
-    resetStore.set(resetToken, { email: email.toLowerCase(), expiresAt: new Date(Date.now() + 10 * 60 * 1000) });
+    resetStore.set(resetToken, { email, expiresAt: new Date(Date.now() + 10 * 60 * 1000) });
 
     res.json({ resetToken });
-  } catch (err) {
-    console.error("verify-otp error:", err);
+  } catch {
     res.status(500).json({ error: "Verification failed. Please try again." });
   }
 });
 
-// POST /api/auth/reset-password  — uses resetToken from verify-otp to set a new password
-router.post("/reset-password", async (req, res) => {
+// POST /api/auth/reset-password
+router.post("/reset-password", authLimiter, async (req, res) => {
   try {
     const { resetToken, newPassword } = req.body;
     if (!resetToken || !newPassword) {
       return res.status(400).json({ error: "Reset token and new password are required." });
     }
-    if (newPassword.length < 6) {
-      return res.status(400).json({ error: "Password must be at least 6 characters." });
+    if (typeof newPassword !== "string" || newPassword.length < MIN_PASSWORD_LENGTH) {
+      return res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.` });
     }
 
     const entry = resetStore.get(resetToken);
@@ -219,36 +248,19 @@ router.post("/reset-password", async (req, res) => {
     const [user] = await db.select().from(usersTable).where(eq(usersTable.email, entry.email));
     if (!user) return res.status(404).json({ error: "Account not found." });
 
-    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const passwordHash = await bcrypt.hash(newPassword, 12);
     await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, user.id));
-
-    // Invalidate the reset token so it can't be reused
     resetStore.delete(resetToken);
 
     res.json({ success: true });
-  } catch (err) {
-    console.error("reset-password error:", err);
+  } catch {
     res.status(500).json({ error: "Password reset failed. Please try again." });
   }
 });
 
-// GET /api/auth/me  (requires Authorization: Bearer <token>)
-router.get("/me", async (req, res) => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-    const token = authHeader.slice(7);
-    const payload = jwt.verify(token, JWT_SECRET) as { id: number; email: string; name: string };
-
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, payload.id));
-    if (!user) return res.status(401).json({ error: "User not found" });
-
-    res.json({ id: user.id, name: user.name, email: user.email });
-  } catch {
-    res.status(401).json({ error: "Invalid or expired token" });
-  }
+// GET /api/auth/me
+router.get("/me", requireAuth, (req, res) => {
+  res.json(req.user);
 });
 
 export default router;

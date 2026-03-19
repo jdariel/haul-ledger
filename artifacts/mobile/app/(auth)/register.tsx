@@ -36,8 +36,8 @@ export default function RegisterScreen() {
       setError("All fields are required.");
       return;
     }
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
       return;
     }
     if (password !== confirmPassword) {
@@ -133,7 +133,7 @@ export default function RegisterScreen() {
                 <Ionicons name="lock-closed-outline" size={18} color={C.textMuted} style={s.inputIcon} />
                 <TextInput
                   style={[s.input, { color: C.text }]}
-                  placeholder="Min. 6 characters"
+                  placeholder="Min. 8 characters"
                   placeholderTextColor={C.textMuted}
                   value={password}
                   onChangeText={setPassword}

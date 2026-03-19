@@ -1,19 +1,44 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { API_BASE_URL as BASE_URL } from "@/constants/api";
 
+// Module-level auth token — set by AuthContext on login/logout/restore
+let _authToken: string | null = null;
+
+export function setAuthToken(token: string | null) {
+  _authToken = token;
+}
+
+// Global 401 handler — set by AuthContext so useApi can trigger logout
+let _on401: (() => void) | null = null;
+
+export function setOn401Handler(handler: () => void) {
+  _on401 = handler;
+}
+
 async function apiFetch(path: string, options?: RequestInit) {
   const url = `${BASE_URL}${path}`;
   const response = await fetch(url, {
     ...options,
     headers: {
       "Content-Type": "application/json",
+      ...(_authToken ? { Authorization: `Bearer ${_authToken}` } : {}),
       ...(options?.headers ?? {}),
     },
   });
+  if (response.status === 401) {
+    _on401?.();
+    throw new Error("Session expired. Please sign in again.");
+  }
   if (response.status === 204) return null;
   if (!response.ok) {
-    const err = await response.text();
-    throw new Error(err || `HTTP ${response.status}`);
+    let message = `HTTP ${response.status}`;
+    try {
+      const body = await response.json();
+      message = body.error || message;
+    } catch {
+      message = (await response.text()) || message;
+    }
+    throw new Error(message);
   }
   return response.json();
 }
@@ -255,3 +280,6 @@ export function useIFTA(quarter: number, year: number) {
     queryFn: () => apiFetch(`/ifta?quarter=${quarter}&year=${year}`),
   });
 }
+
+// Used for non-hook contexts (e.g. scan receipt screen)
+export { apiFetch };

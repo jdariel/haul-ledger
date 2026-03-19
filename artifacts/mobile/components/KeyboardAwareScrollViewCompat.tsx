@@ -3,6 +3,7 @@ import type { ScrollViewProps } from "react-native";
 
 type Props = ScrollViewProps & {
   keyboardShouldPersistTaps?: "always" | "never" | "handled";
+  bottomOffset?: number;
 };
 
 export function KeyboardAwareScrollViewCompat({
@@ -10,6 +11,7 @@ export function KeyboardAwareScrollViewCompat({
   keyboardShouldPersistTaps = "handled",
   style,
   contentContainerStyle,
+  bottomOffset: _bottomOffset,
   ...props
 }: Props) {
   return (

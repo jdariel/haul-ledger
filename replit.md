@@ -16,6 +16,7 @@ pnpm workspace monorepo using TypeScript. Contains a full-stack trucking expense
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
 - **Mobile**: Expo + Expo Router (file-based routing)
+- **Email**: Resend (transactional email via RESEND_API_KEY)
 
 ## Structure
 
@@ -23,6 +24,7 @@ pnpm workspace monorepo using TypeScript. Contains a full-stack trucking expense
 artifacts-monorepo/
 ├── artifacts/
 │   ├── api-server/         # Express API server (all REST endpoints)
+│   │   └── src/middleware/ # auth.ts (JWT), rateLimits.ts (rate limiting)
 │   └── mobile/             # Expo React Native mobile app (HaulLedger)
 ├── lib/                    # Shared libraries
 │   ├── api-spec/           # OpenAPI spec + Orval codegen config
@@ -45,6 +47,7 @@ artifacts-monorepo/
 - **Reports**: IFTA report (miles/fuel by jurisdiction), Schedule C (income/expense by category) with CSV export
 - **More Tab**: Fleet assets, fuel log, trip log, saved routes, and settings
 - **Modal Forms**: Add expense, income, fuel entry, trip, fleet asset, and saved route
+- **Auth**: Register, Login, Forgot Password (email OTP 3-step flow via Resend)
 
 ### Design
 - Deep blue/slate dark theme (#0b1121 background)
@@ -52,7 +55,20 @@ artifacts-monorepo/
 - Bottom tab bar with NativeTabs (liquid glass on iOS 26+)
 - Card-based layout with Inter font
 
-### API Routes
+### Security Architecture
+- **Token storage**: `expo-secure-store` (iOS Keychain / Android Keystore) — NOT AsyncStorage
+- **Auth token**: JWT (30d expiry), stored securely on device
+- **API authentication**: All data routes require `Authorization: Bearer <token>` header
+- **Auto-logout**: 401 responses automatically clear token and redirect to login
+- **Password minimum**: 8 characters (enforced client + server)
+- **OTP**: Cryptographically secure 6-digit codes (`crypto.randomInt`), 15-min expiry, 5-attempt lockout
+- **Email enumeration**: Forgot-password always returns success regardless of whether email exists
+- **Timing attacks**: Constant-time OTP comparison (`crypto.timingSafeEqual`), dummy bcrypt on unknown users
+- **Rate limiting**: Global 100 req/15min; auth endpoints 15 req/15min per IP
+- **HTTP headers**: Helmet (CSP, HSTS, X-Frame-Options, etc.)
+- **Trust proxy**: Express trust proxy enabled for Replit's reverse proxy
+
+### API Routes (all except /auth and /health require JWT)
 - GET/POST/DELETE `/api/expenses`
 - GET/POST/DELETE `/api/income`
 - GET/POST/DELETE `/api/fuel-entries`
@@ -62,9 +78,37 @@ artifacts-monorepo/
 - GET/POST/DELETE `/api/quick-expenses`
 - GET `/api/summary`
 - POST `/api/receipts/process`
+- POST `/api/auth/register`
+- POST `/api/auth/login`
+- POST `/api/auth/forgot-password`
+- POST `/api/auth/verify-otp`
+- POST `/api/auth/reset-password`
+- GET `/api/auth/me`
 
 ### Database Tables
-- `expenses`, `income`, `fuel_entries`, `trips`, `assets`, `saved_routes`, `quick_expenses`
+- `expenses`, `income`, `fuel_entries`, `trips`, `assets`, `saved_routes`, `quick_expenses`, `users`
+
+### App Store Config (app.json)
+- iOS bundle ID: `com.haulledger.app`
+- Android package: `com.haulledger.app`
+- Scheme: `haulledger`
+- Camera/photo permissions with usage descriptions
+- Privacy manifest for iOS
+- `ITSAppUsesNonExemptEncryption: false` (no exempt encryption)
+
+## Critical Notes
+
+- **useColorScheme**: Always import from `@/hooks/useColorScheme` (NOT `react-native`) — `Appearance.setColorScheme` doesn't work on Expo web
+- **API URL**: `constants/api.ts` → always `https://${EXPO_PUBLIC_DOMAIN}/api` (EXPO_PUBLIC_DOMAIN has no https:// prefix)
+- **KeyboardAwareScrollView**: Never use `react-native-keyboard-controller` directly — use `KeyboardAwareScrollViewCompat` from `@/components/KeyboardAwareScrollViewCompat`
+- **Auth token**: `setAuthToken()` from `useApi.ts` must be called on login/logout/restore — injects token into all API requests
+- **Ionicons**: Has no "truck" icon — use "HL" text logo
+- **Colors**: primary `#3b82f6`, green `#10b981`, orange `#f59e0b`, red `#ef4444`, light bg `#f2f2f7`
+- **OpenAI model**: `gpt-4o-mini` with vision (base64 image_url) for receipt scanning
+- **Receipt images**: `receiptUrl` stored as `/objects/uploads/<uuid>`, served via `GET /api/storage/objects/uploads/<uuid>`
+- **File system**: Use `expo-file-system/legacy` (not `expo-file-system`) for `readAsStringAsync`
+- **JWT**: Secret in `JWT_SECRET` env var (shared); expires 30d
+- **DB TS errors**: `@workspace/db` export errors in tsconfig are a pre-existing project references issue — don't affect runtime (tsx resolves directly)
 
 ## Key Commands
 
@@ -73,3 +117,12 @@ artifacts-monorepo/
 - `pnpm --filter @workspace/db run push` — push database schema
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API client
 - `pnpm run typecheck` — full TypeScript check
+
+## Environment Variables
+
+- `DATABASE_URL` — PostgreSQL connection string
+- `JWT_SECRET` — 128-char hex secret for JWT signing (shared env)
+- `RESEND_API_KEY` — Resend API key for OTP emails
+- `EXPO_PUBLIC_DOMAIN` — Replit dev domain (no https:// prefix)
+- `REPLIT_DEV_DOMAIN` — Replit dev domain
+- `REPLIT_EXPO_DEV_DOMAIN` — Expo-specific dev domain
