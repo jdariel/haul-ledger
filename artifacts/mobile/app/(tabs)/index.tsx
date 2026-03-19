@@ -46,7 +46,7 @@ export default function HomeScreen() {
     setTimeout(() => {
       if (action === "expense") router.push("/add-expense");
       else if (action === "income") router.push("/add-income");
-      else if (action === "scan") router.push("/scan-receipt");
+      else if (action === "scan") router.push("/add-expense?scan=1");
     }, 150);
   };
   const { data: summary, refetch: refetchSummary } = useSummary();

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -9,17 +9,21 @@ import {
   Text,
   TextInput,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useColorScheme } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system/legacy";
 
 import { Colors } from "@/constants/colors";
 import { FormInput } from "@/components/FormInput";
 import { SelectField } from "@/components/SelectField";
-import { useCreateExpense, useAssets } from "@/hooks/useApi";
+import { useCreateExpense } from "@/hooks/useApi";
+import { API_BASE_URL } from "@/constants/api";
 
 const CATEGORIES = [
   { label: "Fuel", value: "Fuel" },
@@ -51,11 +55,29 @@ const US_STATES = [
   "SD","TN","TX","UT","VT","VA","WA","WV","WI","WY",
 ].map((s) => ({ label: s, value: s }));
 
+type ScanStatus = "idle" | "picking" | "uploading" | "analyzing" | "done" | "error";
+
+async function uriToBase64(uri: string): Promise<string> {
+  if (uri.startsWith("data:")) return uri.split(",")[1] ?? "";
+  if (Platform.OS !== "web") {
+    return FileSystem.readAsStringAsync(uri, { encoding: "base64" as never });
+  }
+  const res = await fetch(uri);
+  const blob = await res.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve((reader.result as string).split(",")[1] ?? "");
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
 export default function AddExpenseScreen() {
   const colorScheme = useColorScheme();
   const C = Colors[colorScheme === "dark" ? "dark" : "light"];
   const insets = useSafeAreaInsets();
   const createExpense = useCreateExpense();
+  const { scan } = useLocalSearchParams<{ scan?: string }>();
 
   const today = new Date().toISOString().split("T")[0];
   const [date, setDate] = useState(today);
@@ -68,14 +90,74 @@ export default function AddExpenseScreen() {
   const [pricePerGallon, setPricePerGallon] = useState("");
   const [jurisdiction, setJurisdiction] = useState("");
 
+  const [scanStatus, setScanStatus] = useState<ScanStatus>("idle");
+  const [receiptUri, setReceiptUri] = useState<string | null>(null);
+  const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
+
   const isFuel = category === "Fuel";
   const topPad = Platform.OS === "web" ? 24 : insets.top;
   const bottomPad = Platform.OS === "web" ? 24 : insets.bottom;
+  const isScanning = scanStatus === "uploading" || scanStatus === "analyzing";
+
+  useEffect(() => {
+    if (scan === "1") launchPicker(false);
+  }, []);
+
+  const launchPicker = async (fromCamera: boolean) => {
+    setScanStatus("picking");
+    let result;
+    if (fromCamera) {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission needed", "Camera access is required.");
+        setScanStatus("idle");
+        return;
+      }
+      result = await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 0.8, allowsEditing: true });
+    } else {
+      result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.8, allowsEditing: true });
+    }
+    if (result.canceled || !result.assets[0]) {
+      setScanStatus("idle");
+      return;
+    }
+    const uri = result.assets[0].uri;
+    setReceiptUri(uri);
+    await processReceipt(uri);
+  };
+
+  const processReceipt = async (uri: string) => {
+    try {
+      setScanStatus("uploading");
+      const base64 = await uriToBase64(uri);
+      setScanStatus("analyzing");
+      const response = await fetch(`${API_BASE_URL}/receipts/process`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64: base64, mimeType: "image/jpeg" }),
+      });
+      if (!response.ok) throw new Error("Server error");
+      const data = await response.json();
+
+      if (data.merchant) setMerchant(data.merchant);
+      if (data.date) setDate(data.date);
+      if (data.amount != null) setAmount(String(data.amount));
+      if (data.category && CATEGORIES.some((c) => c.value === data.category)) setCategory(data.category);
+      if (data.gallons != null) setGallons(String(data.gallons));
+      if (data.pricePerGallon != null) setPricePerGallon(String(data.pricePerGallon));
+      if (data.jurisdiction) setJurisdiction(data.jurisdiction);
+      if (data.receiptUrl) setReceiptUrl(data.receiptUrl);
+
+      setScanStatus("done");
+    } catch {
+      setScanStatus("error");
+      Alert.alert("Scan failed", "Could not read the receipt. Please fill in the details manually.");
+    }
+  };
 
   const handleSave = async () => {
     if (!merchant.trim()) return Alert.alert("Error", "Merchant is required");
     if (!amount || isNaN(parseFloat(amount))) return Alert.alert("Error", "Valid amount is required");
-
     try {
       await createExpense.mutateAsync({
         date,
@@ -86,6 +168,7 @@ export default function AddExpenseScreen() {
         gallons: gallons ? parseFloat(gallons) : null,
         pricePerGallon: pricePerGallon ? parseFloat(pricePerGallon) : null,
         jurisdiction: jurisdiction || null,
+        receiptUrl: receiptUrl ?? undefined,
       } as Parameters<typeof createExpense.mutateAsync>[0]);
       router.back();
     } catch {
@@ -109,15 +192,54 @@ export default function AddExpenseScreen() {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[s.content, { paddingBottom: bottomPad + 80 }]}
       >
-        {/* Scan Receipt */}
-        <TouchableOpacity
-          style={[s.scanRow, { backgroundColor: C.primaryLight }]}
-          onPress={() => router.push("/scan-receipt")}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="camera-outline" size={18} color={C.primary} />
-          <Text style={[s.scanText, { color: C.primary }]}>Scan Receipt to Auto-fill</Text>
-        </TouchableOpacity>
+        {/* Scan Receipt button / status */}
+        {scanStatus === "idle" || scanStatus === "picking" || scanStatus === "error" ? (
+          <View style={s.scanActions}>
+            <TouchableOpacity
+              style={[s.scanBtn, { backgroundColor: C.primaryLight }]}
+              onPress={() => launchPicker(true)}
+              activeOpacity={0.7}
+              disabled={isScanning}
+            >
+              <Ionicons name="camera-outline" size={17} color={C.primary} />
+              <Text style={[s.scanBtnText, { color: C.primary }]}>Camera</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.scanBtn, { backgroundColor: C.primaryLight }]}
+              onPress={() => launchPicker(false)}
+              activeOpacity={0.7}
+              disabled={isScanning}
+            >
+              <Ionicons name="image-outline" size={17} color={C.primary} />
+              <Text style={[s.scanBtnText, { color: C.primary }]}>Scan Receipt</Text>
+            </TouchableOpacity>
+          </View>
+        ) : isScanning ? (
+          <View style={[s.scanningBox, { backgroundColor: C.primaryLight }]}>
+            <ActivityIndicator size="small" color={C.primary} />
+            <Text style={[s.scanningText, { color: C.primary }]}>
+              {scanStatus === "uploading" ? "Uploading receipt…" : "AI is reading your receipt…"}
+            </Text>
+          </View>
+        ) : scanStatus === "done" ? (
+          <View style={[s.receiptPreview, { backgroundColor: C.card, borderColor: C.cardBorder }]}>
+            <View style={s.receiptPreviewLeft}>
+              {receiptUri ? (
+                <Image source={{ uri: receiptUri }} style={s.receiptThumb} />
+              ) : null}
+              <View>
+                <View style={[s.aiBadge, { backgroundColor: C.primaryLight }]}>
+                  <Ionicons name="sparkles" size={11} color={C.primary} />
+                  <Text style={[s.aiBadgeText, { color: C.primary }]}>Auto-filled</Text>
+                </View>
+                <Text style={[s.receiptHint, { color: C.textSecondary }]}>Review & correct if needed</Text>
+              </View>
+            </View>
+            <TouchableOpacity onPress={() => { setScanStatus("idle"); setReceiptUri(null); }} hitSlop={8}>
+              <Ionicons name="refresh-outline" size={18} color={C.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        ) : null}
 
         {/* Merchant */}
         <FormInput
@@ -125,7 +247,7 @@ export default function AddExpenseScreen() {
           value={merchant}
           onChangeText={setMerchant}
           placeholder="Pilot Flying J"
-          autoFocus
+          autoFocus={!scan}
         />
 
         {/* Amount + Date row */}
@@ -144,7 +266,7 @@ export default function AddExpenseScreen() {
               label="Date"
               value={date}
               onChangeText={setDate}
-              placeholder="MM/DD/YYYY"
+              placeholder="YYYY-MM-DD"
               keyboardType="numbers-and-punctuation"
             />
           </View>
@@ -153,21 +275,10 @@ export default function AddExpenseScreen() {
         {/* Category + Payment row */}
         <View style={s.row}>
           <View style={s.half}>
-            <SelectField
-              label="Category"
-              value={category}
-              options={CATEGORIES}
-              onChange={setCategory}
-            />
+            <SelectField label="Category" value={category} options={CATEGORIES} onChange={setCategory} />
           </View>
           <View style={s.half}>
-            <SelectField
-              label="Payment"
-              value={payment}
-              options={PAYMENT_METHODS}
-              placeholder="Select"
-              onChange={setPayment}
-            />
+            <SelectField label="Payment" value={payment} options={PAYMENT_METHODS} placeholder="Select" onChange={setPayment} />
           </View>
         </View>
 
@@ -178,35 +289,15 @@ export default function AddExpenseScreen() {
               <MaterialCommunityIcons name="fire" size={16} color="#f59e0b" />
               <Text style={s.fuelTitle}>FUEL DETAILS</Text>
             </View>
-
             <View style={s.row}>
               <View style={s.half}>
-                <FormInput
-                  label="$/Gallon"
-                  value={pricePerGallon}
-                  onChangeText={setPricePerGallon}
-                  placeholder="3.459"
-                  keyboardType="decimal-pad"
-                />
+                <FormInput label="$/Gallon" value={pricePerGallon} onChangeText={setPricePerGallon} placeholder="3.459" keyboardType="decimal-pad" />
               </View>
               <View style={s.half}>
-                <FormInput
-                  label="Gallons"
-                  value={gallons}
-                  onChangeText={setGallons}
-                  placeholder="120.5"
-                  keyboardType="decimal-pad"
-                />
+                <FormInput label="Gallons" value={gallons} onChangeText={setGallons} placeholder="120.5" keyboardType="decimal-pad" />
               </View>
             </View>
-
-            <SelectField
-              label="State / Jurisdiction"
-              value={jurisdiction}
-              options={US_STATES}
-              placeholder="Select state"
-              onChange={setJurisdiction}
-            />
+            <SelectField label="State / Jurisdiction" value={jurisdiction} options={US_STATES} placeholder="Select state" onChange={setJurisdiction} />
           </View>
         )}
 
@@ -236,8 +327,7 @@ export default function AddExpenseScreen() {
         >
           {createExpense.isPending
             ? <ActivityIndicator color="#fff" size="small" />
-            : <Text style={s.saveBtnText}>Save Expense</Text>
-          }
+            : <Text style={s.saveBtnText}>Save Expense</Text>}
         </TouchableOpacity>
       </View>
     </View>
@@ -256,31 +346,55 @@ const s = StyleSheet.create({
   },
   title: { fontSize: 18, fontWeight: "700" },
   content: { paddingHorizontal: 20, paddingTop: 8 },
-  scanRow: {
+  scanActions: { flexDirection: "row", gap: 10, marginBottom: 20 },
+  scanBtn: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 16,
+    justifyContent: "center",
+    gap: 7,
     paddingVertical: 12,
+    borderRadius: 12,
+  },
+  scanBtnText: { fontSize: 14, fontWeight: "600" },
+  scanningBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     borderRadius: 12,
     marginBottom: 20,
     justifyContent: "center",
   },
-  scanText: { fontSize: 14, fontWeight: "600" },
-  row: { flexDirection: "row", gap: 12 },
-  half: { flex: 1 },
-  fuelBox: {
-    borderWidth: 1.5,
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 16,
-  },
-  fuelHeader: {
+  scanningText: { fontSize: 14, fontWeight: "600" },
+  receiptPreview: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    marginBottom: 14,
+    justifyContent: "space-between",
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 20,
   },
+  receiptPreviewLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+  receiptThumb: { width: 44, height: 44, borderRadius: 8, backgroundColor: "#e5e7eb" },
+  aiBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    alignSelf: "flex-start",
+    marginBottom: 3,
+  },
+  aiBadgeText: { fontSize: 11, fontWeight: "700" },
+  receiptHint: { fontSize: 12 },
+  row: { flexDirection: "row", gap: 12 },
+  half: { flex: 1 },
+  fuelBox: { borderWidth: 1.5, borderRadius: 14, padding: 14, marginBottom: 16 },
+  fuelHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 14 },
   fuelTitle: { fontSize: 12, fontWeight: "700", color: "#f59e0b", letterSpacing: 0.8 },
   fieldLabel: { fontSize: 13, fontWeight: "500", marginBottom: 6 },
   textarea: {
