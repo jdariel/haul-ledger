@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, expensesTable } from "@workspace/db";
+import { db, expensesTable, fuelEntriesTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 
 const router = Router();
@@ -43,9 +43,39 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    const [expense] = await db.insert(expensesTable).values(req.body).returning();
-    res.status(201).json({ ...expense, createdAt: expense.createdAt.toISOString() });
+    const body = req.body;
+
+    const isFuel =
+      body.category === "Fuel" &&
+      body.gallons != null &&
+      body.pricePerGallon != null &&
+      parseFloat(body.gallons) > 0 &&
+      parseFloat(body.pricePerGallon) > 0;
+
+    const result = await db.transaction(async (tx) => {
+      const [expense] = await tx
+        .insert(expensesTable)
+        .values(body)
+        .returning();
+
+      if (isFuel) {
+        await tx.insert(fuelEntriesTable).values({
+          date: body.date,
+          vendor: body.merchant,
+          gallons: parseFloat(body.gallons),
+          pricePerGallon: parseFloat(body.pricePerGallon),
+          jurisdiction: body.jurisdiction ?? "N/A",
+          totalAmount: body.amount ?? parseFloat(body.gallons) * parseFloat(body.pricePerGallon),
+          truckId: body.truckId ?? null,
+        });
+      }
+
+      return expense;
+    });
+
+    res.status(201).json({ ...result, createdAt: result.createdAt.toISOString() });
   } catch (err) {
+    console.error("Create expense error:", err);
     res.status(500).json({ error: "Failed to create expense" });
   }
 });
