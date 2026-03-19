@@ -27,7 +27,7 @@ async function uriToBase64(uri: string): Promise<string> {
   if (uri.startsWith("data:")) {
     return uri.split(",")[1] ?? "";
   }
-  if (typeof FileSystem.readAsStringAsync === "function") {
+  if (Platform.OS !== "web") {
     return FileSystem.readAsStringAsync(uri, { encoding: "base64" as never });
   }
   const response = await fetch(uri);
