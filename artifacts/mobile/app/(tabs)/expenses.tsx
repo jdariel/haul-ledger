@@ -10,6 +10,7 @@ import {
   Modal,
   useColorScheme,
 } from "react-native";
+import { DateRangePicker } from "@/components/DateRangePicker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -50,10 +51,13 @@ export default function ExpensesScreen() {
   const colorScheme = useColorScheme();
   const C = Colors[colorScheme === "dark" ? "dark" : "light"];
   const [search, setSearch] = useState("");
-  const [view, setView] = useState<"week" | "all">("week");
+  const [view, setView] = useState<"week" | "all" | "custom">("week");
   const [weekOffset, setWeekOffset] = useState(0);
   const [filterCategory, setFilterCategory] = useState("All");
   const [filterVisible, setFilterVisible] = useState(false);
+  const [calendarVisible, setCalendarVisible] = useState(false);
+  const [customStart, setCustomStart] = useState<Date | null>(null);
+  const [customEnd, setCustomEnd] = useState<Date | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
@@ -77,10 +81,14 @@ export default function ExpensesScreen() {
       const d = new Date(e.date || e.createdAt);
       return d >= start && d <= end;
     }
+    if (view === "custom" && customStart && customEnd) {
+      const d = new Date(e.date || e.createdAt);
+      return d >= customStart && d <= customEnd;
+    }
     return true;
   });
 
-  const weekTotal = filtered.reduce((sum: number, e: any) => sum + Number(e.amount), 0);
+  const rangeTotal = filtered.reduce((sum: number, e: any) => sum + Number(e.amount), 0);
 
   const isCurrentWeek = weekOffset === 0;
   const weekLabel = isCurrentWeek ? "This Week" : weekOffset === -1 ? "Last Week" : `${weekOffset < 0 ? "Past" : "Future"}`;
@@ -146,13 +154,20 @@ export default function ExpensesScreen() {
           )}
         </View>
 
-        {/* Week/All Toggle */}
+        {/* Week/Custom/All Toggle */}
         <View style={[s.segmentWrap, { backgroundColor: C.card, borderColor: C.separator }]}>
           <TouchableOpacity
             style={[s.segment, view === "week" && [s.segmentActive, { backgroundColor: C.primary }]]}
             onPress={() => setView("week")}
           >
             <Text style={[s.segmentText, { color: view === "week" ? "#fff" : C.textSecondary }]}>Week</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.segment, view === "custom" && [s.segmentActive, { backgroundColor: C.primary }]]}
+            onPress={() => { setView("custom"); setCalendarVisible(true); }}
+          >
+            <Ionicons name="calendar-outline" size={13} color={view === "custom" ? "#fff" : C.textSecondary} style={{ marginRight: 3 }} />
+            <Text style={[s.segmentText, { color: view === "custom" ? "#fff" : C.textSecondary }]}>Custom</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[s.segment, view === "all" && [s.segmentActive, { backgroundColor: C.primary }]]}
@@ -162,19 +177,22 @@ export default function ExpensesScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Week Nav */}
+        {/* Date Nav */}
         {view === "week" && (
           <View style={[s.weekNav, { backgroundColor: C.card, borderColor: C.separator }]}>
             <TouchableOpacity onPress={() => setWeekOffset(weekOffset - 1)} style={s.weekArrow}>
               <Ionicons name="chevron-back" size={18} color={C.textSecondary} />
             </TouchableOpacity>
-            <View style={s.weekCenter}>
-              <Text style={s.weekRange}>{fmtDate(start)} – {fmtDate(end)}</Text>
+            <TouchableOpacity style={s.weekCenter} onPress={() => { setView("custom"); setCalendarVisible(true); }} activeOpacity={0.7}>
+              <View style={s.weekRangeRow}>
+                <Ionicons name="calendar-outline" size={13} color={C.primary} />
+                <Text style={[s.weekRange, { color: C.text }]}>{fmtDate(start)} – {fmtDate(end)}</Text>
+              </View>
               <Text style={s.weekLbl}>{weekLabel}</Text>
               <Text style={[s.weekTotal, { color: C.red }]}>
-                Week Total: -${weekTotal.toFixed(2)}
+                Total: -${rangeTotal.toFixed(2)}
               </Text>
-            </View>
+            </TouchableOpacity>
             <TouchableOpacity
               onPress={() => setWeekOffset(weekOffset + 1)}
               style={s.weekArrow}
@@ -183,6 +201,27 @@ export default function ExpensesScreen() {
               <Ionicons name="chevron-forward" size={18} color={weekOffset >= 0 ? C.textMuted : C.textSecondary} />
             </TouchableOpacity>
           </View>
+        )}
+
+        {/* Custom Range Display */}
+        {view === "custom" && (
+          <TouchableOpacity
+            style={[s.weekNav, { backgroundColor: C.card, borderColor: C.primary }]}
+            onPress={() => setCalendarVisible(true)}
+            activeOpacity={0.75}
+          >
+            <Ionicons name="calendar" size={16} color={C.primary} style={{ marginRight: 8 }} />
+            <View style={s.weekCenter}>
+              <Text style={[s.weekRange, { color: C.text }]}>
+                {customStart && customEnd
+                  ? `${fmtDate(customStart)} – ${fmtDate(customEnd)}`
+                  : "Tap to pick dates"}
+              </Text>
+              <Text style={[s.weekLbl, { color: C.primary }]}>Custom Range · tap to change</Text>
+              <Text style={[s.weekTotal, { color: C.red }]}>Total: -${rangeTotal.toFixed(2)}</Text>
+            </View>
+            <Ionicons name="chevron-down" size={16} color={C.primary} />
+          </TouchableOpacity>
         )}
 
         {/* List */}
@@ -241,6 +280,22 @@ export default function ExpensesScreen() {
           }
         }}
         onCancel={() => setDeleteId(null)}
+      />
+
+      <DateRangePicker
+        visible={calendarVisible}
+        initialStart={customStart}
+        initialEnd={customEnd}
+        onApply={(s, e) => {
+          setCustomStart(s);
+          setCustomEnd(e);
+          setView("custom");
+          setCalendarVisible(false);
+        }}
+        onCancel={() => {
+          setCalendarVisible(false);
+          if (!customStart) setView("week");
+        }}
       />
 
       {/* Category Filter Sheet */}
@@ -358,6 +413,7 @@ function makeStyles(C: typeof Colors.light) {
     },
     weekArrow: { padding: 4 },
     weekCenter: { flex: 1, alignItems: "center" },
+    weekRangeRow: { flexDirection: "row", alignItems: "center", gap: 5 },
     weekRange: { fontSize: 13, fontWeight: "600", color: C.text },
     weekLbl: { fontSize: 12, color: C.textSecondary, marginTop: 2 },
     weekTotal: { fontSize: 14, fontWeight: "700", marginTop: 4 },

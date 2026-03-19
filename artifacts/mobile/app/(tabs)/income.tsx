@@ -15,6 +15,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { Colors } from "@/constants/colors";
 import { useIncome, useDeleteIncome } from "../../hooks/useApi";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { DateRangePicker } from "@/components/DateRangePicker";
 
 function getWeekBounds(offset: number) {
   const now = new Date();
@@ -32,10 +33,16 @@ function fmtDate(d: Date) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+type ViewMode = "week" | "custom" | "all";
+
 export default function IncomeScreen() {
   const colorScheme = useColorScheme();
   const C = Colors[colorScheme === "dark" ? "dark" : "light"];
+  const [view, setView] = useState<ViewMode>("week");
   const [weekOffset, setWeekOffset] = useState(0);
+  const [calendarVisible, setCalendarVisible] = useState(false);
+  const [customStart, setCustomStart] = useState<Date | null>(null);
+  const [customEnd, setCustomEnd] = useState<Date | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
@@ -54,12 +61,19 @@ export default function IncomeScreen() {
   const isCurrentWeek = weekOffset === 0;
   const weekLabel = isCurrentWeek ? "This Week" : weekOffset === -1 ? "Last Week" : "";
 
-  const weekIncome = (income ?? []).filter((i: any) => {
-    const d = new Date(i.date || i.createdAt);
-    return d >= start && d <= end;
+  const filtered = (income ?? []).filter((i: any) => {
+    if (view === "week") {
+      const d = new Date(i.date || i.createdAt);
+      return d >= start && d <= end;
+    }
+    if (view === "custom" && customStart && customEnd) {
+      const d = new Date(i.date || i.createdAt);
+      return d >= customStart && d <= customEnd;
+    }
+    return true;
   });
 
-  const weekTotal = weekIncome.reduce((sum: number, i: any) => sum + Number(i.amount), 0);
+  const rangeTotal = filtered.reduce((sum: number, i: any) => sum + Number(i.amount), 0);
 
   const s = makeStyles(C);
 
@@ -86,37 +100,103 @@ export default function IncomeScreen() {
           <Text style={[s.addBtnText, { color: C.green }]}>Add Income</Text>
         </TouchableOpacity>
 
-        {/* Week Nav */}
-        <View style={[s.weekNav, { backgroundColor: C.card, borderColor: C.separator }]}>
-          <TouchableOpacity onPress={() => setWeekOffset(weekOffset - 1)} style={s.weekArrow}>
-            <Ionicons name="chevron-back" size={18} color={C.textSecondary} />
-          </TouchableOpacity>
-          <View style={s.weekCenter}>
-            <Text style={s.weekRange}>{fmtDate(start)} – {fmtDate(end)}</Text>
-            <Text style={s.weekLbl}>{weekLabel}</Text>
-            <Text style={[s.weekTotal, { color: C.green }]}>
-              Week Total: +${weekTotal.toFixed(2)}
-            </Text>
-          </View>
+        {/* Segment Toggle */}
+        <View style={[s.segmentWrap, { backgroundColor: C.card, borderColor: C.separator }]}>
           <TouchableOpacity
-            onPress={() => setWeekOffset(weekOffset + 1)}
-            style={s.weekArrow}
-            disabled={weekOffset >= 0}
+            style={[s.segment, view === "week" && [s.segmentActive, { backgroundColor: C.green }]]}
+            onPress={() => setView("week")}
           >
-            <Ionicons name="chevron-forward" size={18} color={weekOffset >= 0 ? C.textMuted : C.textSecondary} />
+            <Text style={[s.segmentText, { color: view === "week" ? "#fff" : C.textSecondary }]}>Week</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.segment, view === "custom" && [s.segmentActive, { backgroundColor: C.green }]]}
+            onPress={() => { setView("custom"); setCalendarVisible(true); }}
+          >
+            <Ionicons name="calendar-outline" size={13} color={view === "custom" ? "#fff" : C.textSecondary} style={{ marginRight: 3 }} />
+            <Text style={[s.segmentText, { color: view === "custom" ? "#fff" : C.textSecondary }]}>Custom</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.segment, view === "all" && [s.segmentActive, { backgroundColor: C.green }]]}
+            onPress={() => setView("all")}
+          >
+            <Text style={[s.segmentText, { color: view === "all" ? "#fff" : C.textSecondary }]}>All</Text>
           </TouchableOpacity>
         </View>
 
+        {/* Week Nav */}
+        {view === "week" && (
+          <View style={[s.weekNav, { backgroundColor: C.card, borderColor: C.separator }]}>
+            <TouchableOpacity onPress={() => setWeekOffset(weekOffset - 1)} style={s.weekArrow}>
+              <Ionicons name="chevron-back" size={18} color={C.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={s.weekCenter}
+              onPress={() => { setView("custom"); setCalendarVisible(true); }}
+              activeOpacity={0.7}
+            >
+              <View style={s.weekRangeRow}>
+                <Ionicons name="calendar-outline" size={13} color={C.green} />
+                <Text style={[s.weekRange, { color: C.text }]}>{fmtDate(start)} – {fmtDate(end)}</Text>
+              </View>
+              <Text style={s.weekLbl}>{weekLabel}</Text>
+              <Text style={[s.weekTotal, { color: C.green }]}>
+                Total: +${rangeTotal.toFixed(2)}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setWeekOffset(weekOffset + 1)}
+              style={s.weekArrow}
+              disabled={weekOffset >= 0}
+            >
+              <Ionicons name="chevron-forward" size={18} color={weekOffset >= 0 ? C.textMuted : C.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Custom Range Display */}
+        {view === "custom" && (
+          <TouchableOpacity
+            style={[s.weekNav, { backgroundColor: C.card, borderColor: C.green }]}
+            onPress={() => setCalendarVisible(true)}
+            activeOpacity={0.75}
+          >
+            <Ionicons name="calendar" size={16} color={C.green} style={{ marginRight: 8 }} />
+            <View style={s.weekCenter}>
+              <Text style={[s.weekRange, { color: C.text }]}>
+                {customStart && customEnd
+                  ? `${fmtDate(customStart)} – ${fmtDate(customEnd)}`
+                  : "Tap to pick dates"}
+              </Text>
+              <Text style={[s.weekLbl, { color: C.green }]}>Custom Range · tap to change</Text>
+              <Text style={[s.weekTotal, { color: C.green }]}>Total: +${rangeTotal.toFixed(2)}</Text>
+            </View>
+            <Ionicons name="chevron-down" size={16} color={C.green} />
+          </TouchableOpacity>
+        )}
+
+        {/* All time summary */}
+        {view === "all" && (
+          <View style={[s.weekNav, { backgroundColor: C.card, borderColor: C.separator }]}>
+            <Ionicons name="infinite-outline" size={18} color={C.textSecondary} style={{ marginRight: 8 }} />
+            <View style={s.weekCenter}>
+              <Text style={[s.weekRange, { color: C.text }]}>All Income</Text>
+              <Text style={[s.weekTotal, { color: C.green }]}>Total: +${rangeTotal.toFixed(2)}</Text>
+            </View>
+          </View>
+        )}
+
         {/* List or empty */}
-        {weekIncome.length === 0 ? (
+        {filtered.length === 0 ? (
           <View style={s.empty}>
             <Ionicons name="trending-up-outline" size={44} color={C.textMuted} />
-            <Text style={s.emptyTitle}>No income logged this week.</Text>
+            <Text style={s.emptyTitle}>
+              {view === "week" ? "No income logged this week." : view === "custom" ? "No income in this range." : "No income logged yet."}
+            </Text>
             <Text style={s.emptySubtitle}>Tap + to add a load.</Text>
           </View>
         ) : (
           <View style={s.list}>
-            {weekIncome.map((item: any) => (
+            {filtered.map((item: any) => (
               <View key={item.id} style={[s.incomeCard, { backgroundColor: C.card, borderColor: C.separator }]}>
                 <View style={[s.iconBubble, { backgroundColor: C.greenLight }]}>
                   <Ionicons name="trending-up" size={18} color={C.green} />
@@ -139,6 +219,7 @@ export default function IncomeScreen() {
           </View>
         )}
       </ScrollView>
+
       <ConfirmDialog
         visible={deleteId !== null}
         title="Delete Income"
@@ -149,6 +230,22 @@ export default function IncomeScreen() {
           }
         }}
         onCancel={() => setDeleteId(null)}
+      />
+
+      <DateRangePicker
+        visible={calendarVisible}
+        initialStart={customStart}
+        initialEnd={customEnd}
+        onApply={(s, e) => {
+          setCustomStart(s);
+          setCustomEnd(e);
+          setView("custom");
+          setCalendarVisible(false);
+        }}
+        onCancel={() => {
+          setCalendarVisible(false);
+          if (!customStart) setView("week");
+        }}
       />
     </SafeAreaView>
   );
@@ -173,6 +270,16 @@ function makeStyles(C: typeof Colors.light) {
       borderWidth: 1.5,
     },
     addBtnText: { fontSize: 15, fontWeight: "700" },
+    segmentWrap: {
+      flexDirection: "row",
+      marginHorizontal: 20,
+      borderRadius: 10,
+      borderWidth: 1,
+      padding: 3,
+    },
+    segment: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 8, borderRadius: 8 },
+    segmentActive: {},
+    segmentText: { fontSize: 13, fontWeight: "600" },
     weekNav: {
       flexDirection: "row",
       alignItems: "center",
@@ -183,6 +290,7 @@ function makeStyles(C: typeof Colors.light) {
     },
     weekArrow: { padding: 4 },
     weekCenter: { flex: 1, alignItems: "center" },
+    weekRangeRow: { flexDirection: "row", alignItems: "center", gap: 5 },
     weekRange: { fontSize: 13, fontWeight: "600", color: C.text },
     weekLbl: { fontSize: 12, color: C.textSecondary, marginTop: 2 },
     weekTotal: { fontSize: 14, fontWeight: "700", marginTop: 4 },
