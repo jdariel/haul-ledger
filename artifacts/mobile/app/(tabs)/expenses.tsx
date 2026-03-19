@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   TextInput,
   RefreshControl,
+  Modal,
   useColorScheme,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -52,6 +53,7 @@ export default function ExpensesScreen() {
   const [view, setView] = useState<"week" | "all">("week");
   const [weekOffset, setWeekOffset] = useState(0);
   const [filterCategory, setFilterCategory] = useState("All");
+  const [filterVisible, setFilterVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
@@ -104,9 +106,22 @@ export default function ExpensesScreen() {
 
         {/* Action Row */}
         <View style={s.actionRow}>
-          <TouchableOpacity style={s.filterBtn}>
-            <Ionicons name="filter" size={15} color={C.text} />
-            <Text style={s.filterText}>Filter</Text>
+          <TouchableOpacity
+            style={[s.filterBtn, filterCategory !== "All" && { borderColor: C.primary, backgroundColor: C.primary + "15" }]}
+            onPress={() => setFilterVisible(true)}
+          >
+            <Ionicons name="filter" size={15} color={filterCategory !== "All" ? C.primary : C.text} />
+            <Text style={[s.filterText, filterCategory !== "All" && { color: C.primary }]}>
+              {filterCategory === "All" ? "Filter" : filterCategory}
+            </Text>
+            {filterCategory !== "All" && (
+              <TouchableOpacity
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                onPress={(e) => { e.stopPropagation(); setFilterCategory("All"); }}
+              >
+                <Ionicons name="close-circle" size={14} color={C.primary} />
+              </TouchableOpacity>
+            )}
           </TouchableOpacity>
           <TouchableOpacity style={[s.addBtn, { backgroundColor: C.primary }]} onPress={() => router.push("/add-expense")}>
             <Ionicons name="add" size={16} color="#fff" />
@@ -227,6 +242,56 @@ export default function ExpensesScreen() {
         }}
         onCancel={() => setDeleteId(null)}
       />
+
+      {/* Category Filter Sheet */}
+      <Modal
+        visible={filterVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setFilterVisible(false)}
+      >
+        <TouchableOpacity
+          style={s.filterOverlay}
+          activeOpacity={1}
+          onPress={() => setFilterVisible(false)}
+        >
+          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+            <View style={[s.filterSheet, { backgroundColor: C.card }]}>
+              <View style={[s.filterHandle, { backgroundColor: C.separator }]} />
+              <Text style={[s.filterSheetTitle, { color: C.text }]}>Filter by Category</Text>
+              <View style={s.catGrid}>
+                {CATEGORIES.map((cat) => {
+                  const info = cat === "All" ? null : CATEGORY_ICONS[cat];
+                  const active = filterCategory === cat;
+                  return (
+                    <TouchableOpacity
+                      key={cat}
+                      style={[
+                        s.catChip,
+                        {
+                          backgroundColor: active ? C.primary : C.background,
+                          borderColor: active ? C.primary : C.separator,
+                        },
+                      ]}
+                      onPress={() => { setFilterCategory(cat); setFilterVisible(false); }}
+                    >
+                      {info && (
+                        <Ionicons
+                          name={info.icon as any}
+                          size={14}
+                          color={active ? "#fff" : info.color}
+                          style={{ marginRight: 5 }}
+                        />
+                      )}
+                      <Text style={[s.catChipText, { color: active ? "#fff" : C.text }]}>{cat}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -316,5 +381,35 @@ function makeStyles(C: typeof Colors.light) {
     expRightRow: { flexDirection: "row", alignItems: "center" },
     expAmt: { fontSize: 15, fontWeight: "700" },
     deleteBtn: { padding: 2 },
+    filterOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.4)",
+      justifyContent: "flex-end",
+    },
+    filterSheet: {
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      padding: 20,
+      paddingBottom: 36,
+      gap: 16,
+    },
+    filterHandle: {
+      width: 36,
+      height: 4,
+      borderRadius: 2,
+      alignSelf: "center",
+      marginBottom: 4,
+    },
+    filterSheetTitle: { fontSize: 17, fontWeight: "700", textAlign: "center" },
+    catGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+    catChip: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderRadius: 12,
+      borderWidth: 1.5,
+    },
+    catChipText: { fontSize: 14, fontWeight: "600" },
   });
 }
