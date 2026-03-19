@@ -8,16 +8,19 @@ import {
   RefreshControl,
   useColorScheme,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { Colors } from "@/constants/colors";
 import { useSummary, useExpenses, useIncome } from "../../hooks/useApi";
 
+const TAB_BAR_HEIGHT = 56;
+
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const C = Colors[colorScheme === "dark" ? "dark" : "light"];
+  const insets = useSafeAreaInsets();
   const [period, setPeriod] = useState<"week" | "month">("week");
   const [refreshing, setRefreshing] = useState(false);
   const { data: summary, refetch: refetchSummary } = useSummary();
@@ -190,7 +193,7 @@ export default function HomeScreen() {
 
       {/* FAB */}
       <TouchableOpacity
-        style={[s.fab, { backgroundColor: C.primary }]}
+        style={[s.fab, { backgroundColor: C.primary, bottom: TAB_BAR_HEIGHT + insets.bottom + 16 }]}
         onPress={() => router.push("/add-expense")}
       >
         <Ionicons name="add" size={28} color="#fff" />
