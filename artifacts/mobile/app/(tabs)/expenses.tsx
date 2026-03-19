@@ -1,349 +1,307 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
-  FlatList,
-  StyleSheet,
-  TouchableOpacity,
   View,
-  Alert,
-  Platform,
-  ActivityIndicator,
-  TextInput,
+  Text,
+  StyleSheet,
   ScrollView,
+  TouchableOpacity,
+  TextInput,
+  RefreshControl,
+  Alert,
+  useColorScheme,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useColorScheme } from "react-native";
-import { Feather } from "@expo/vector-icons";
-
+import { useFocusEffect } from "@react-navigation/native";
 import { Colors } from "@/constants/colors";
-import { ThemedText } from "@/components/ThemedText";
-import { Card } from "@/components/Card";
-import { SwipeableRow } from "@/components/SwipeableRow";
-import { useExpenses, useDeleteExpense } from "@/hooks/useApi";
+import { useExpenses, useDeleteExpense } from "../../hooks/useApi";
 
-const CATEGORIES = [
-  "All", "Fuel", "Repairs", "Maintenance", "Insurance",
-  "Tolls", "Parking", "Scale Fee", "Lumper", "Other",
-];
-
-function formatCurrency(val: number) {
-  return `$${val.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function getWeekBounds(offset: number) {
+  const now = new Date();
+  const day = now.getDay();
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1) + offset * 7);
+  monday.setHours(0, 0, 0, 0);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
+  return { start: monday, end: sunday };
 }
 
-function getCategoryColor(category: string, theme: any) {
-  const map: Record<string, string> = {
-    Fuel: theme.primary,
-    Repairs: theme.red,
-    Maintenance: theme.orange,
-    Insurance: theme.yellow,
-    Tolls: theme.green,
-    Parking: theme.greenLight,
-    "Scale Fee": theme.primaryLight,
-    Lumper: theme.textSecondary,
-  };
-  return map[category] ?? theme.textMuted;
+function fmtDate(d: Date) {
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
+
+const CATEGORIES = ["All", "Fuel", "Maintenance", "Lumper", "Tolls", "Parking", "Scale Fee", "Other"];
+
+const CATEGORY_ICONS: Record<string, { icon: string; color: string; bg: string }> = {
+  Fuel: { icon: "flame", color: "#f59e0b", bg: "#fef3c7" },
+  Maintenance: { icon: "construct", color: "#8b5cf6", bg: "#ede9fe" },
+  Lumper: { icon: "people", color: "#3b82f6", bg: "#eff6ff" },
+  Tolls: { icon: "car", color: "#6b7280", bg: "#f3f4f6" },
+  Parking: { icon: "location", color: "#14b8a6", bg: "#ccfbf1" },
+  "Scale Fee": { icon: "scale", color: "#f97316", bg: "#fff7ed" },
+  Other: { icon: "ellipsis-horizontal", color: "#6b7280", bg: "#f3f4f6" },
+};
 
 export default function ExpensesScreen() {
   const colorScheme = useColorScheme();
-  const isDark = colorScheme !== "light";
-  const theme = isDark ? Colors.dark : Colors.light;
-  const insets = useSafeAreaInsets();
-
-  const [selectedCategory, setSelectedCategory] = useState("All");
-  const [showWeekOnly, setShowWeekOnly] = useState(false);
+  const C = Colors[colorScheme === "dark" ? "dark" : "light"];
   const [search, setSearch] = useState("");
+  const [view, setView] = useState<"week" | "all">("week");
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [filterCategory, setFilterCategory] = useState("All");
+  const [refreshing, setRefreshing] = useState(false);
 
-  const { data: expenses, isLoading, refetch } = useExpenses({
-    category: selectedCategory !== "All" ? selectedCategory : undefined,
-    week: showWeekOnly,
-    search: search.trim() || undefined,
-  });
+  const { data: expenses, refetch } = useExpenses();
   const deleteExpense = useDeleteExpense();
 
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
+  useFocusEffect(useCallback(() => { refetch(); }, []));
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  };
+
+  const { start, end } = getWeekBounds(weekOffset);
+
+  const filtered = (expenses ?? []).filter((e: any) => {
+    if (filterCategory !== "All" && e.category !== filterCategory) return false;
+    if (search && !e.merchant?.toLowerCase().includes(search.toLowerCase())) return false;
+    if (view === "week") {
+      const d = new Date(e.date || e.createdAt);
+      return d >= start && d <= end;
+    }
+    return true;
+  });
+
+  const weekTotal = filtered.reduce((sum: number, e: any) => sum + Number(e.amount), 0);
+
+  const isCurrentWeek = weekOffset === 0;
+  const weekLabel = isCurrentWeek ? "This Week" : weekOffset === -1 ? "Last Week" : `${weekOffset < 0 ? "Past" : "Future"}`;
 
   const handleDelete = (id: number) => {
-    Alert.alert("Delete Expense", "Are you sure you want to delete this expense?", [
+    Alert.alert("Delete Expense", "Remove this expense?", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
         style: "destructive",
-        onPress: () => deleteExpense.mutate(id),
+        onPress: () => deleteExpense.mutate(id, { onSuccess: () => refetch() }),
       },
     ]);
   };
 
-  const totalShown = expenses?.reduce((s: number, e: any) => s + e.amount, 0) ?? 0;
+  const s = makeStyles(C);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + 12 }]}>
-        <View style={styles.headerTop}>
-          <ThemedText weight="bold" style={styles.title}>
-            Expenses
-          </ThemedText>
-          <View style={styles.headerActions}>
-            <TouchableOpacity
-              onPress={() => setShowWeekOnly(!showWeekOnly)}
-              style={[
-                styles.toggleBtn,
-                {
-                  backgroundColor: showWeekOnly ? theme.primary : theme.card,
-                  borderColor: showWeekOnly ? theme.primary : theme.cardBorder,
-                },
-              ]}
-            >
-              <ThemedText
-                weight="medium"
-                style={[styles.toggleText, { color: showWeekOnly ? "#fff" : theme.text }]}
-              >
-                Week
-              </ThemedText>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.addBtn, { backgroundColor: theme.primary }]}
-              onPress={() => router.push("/add-expense")}
-            >
-              <Feather name="plus" size={20} color="#fff" />
-            </TouchableOpacity>
+    <SafeAreaView style={s.safe} edges={["top"]}>
+      <ScrollView
+        style={s.scroll}
+        contentContainerStyle={s.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} />}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header */}
+        <View style={s.header}>
+          <View>
+            <Text style={s.title}>Expenses</Text>
+            <Text style={s.subtitle}>Track every penny spent on the road.</Text>
           </View>
         </View>
 
-        <View style={[styles.searchBox, { backgroundColor: theme.inputBackground, borderColor: theme.cardBorder }]}>
-          <Feather name="search" size={16} color={theme.textMuted} />
+        {/* Action Row */}
+        <View style={s.actionRow}>
+          <TouchableOpacity style={s.filterBtn}>
+            <Ionicons name="filter" size={15} color={C.text} />
+            <Text style={s.filterText}>Filter</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.addBtn, { backgroundColor: C.primary }]} onPress={() => router.push("/add-expense")}>
+            <Ionicons name="add" size={16} color="#fff" />
+            <Text style={s.addBtnText}>Add Expense</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Search */}
+        <View style={[s.searchBox, { backgroundColor: C.card, borderColor: C.separator }]}>
+          <Ionicons name="search-outline" size={16} color={C.textMuted} />
           <TextInput
+            style={[s.searchInput, { color: C.text }]}
+            placeholder="Search by merchant..."
+            placeholderTextColor={C.textMuted}
             value={search}
             onChangeText={setSearch}
-            placeholder="Search merchant..."
-            placeholderTextColor={theme.textMuted}
-            style={[styles.searchInput, { color: theme.text }]}
           />
-          {search.length > 0 ? (
+          {search.length > 0 && (
             <TouchableOpacity onPress={() => setSearch("")}>
-              <Feather name="x" size={16} color={theme.textMuted} />
+              <Ionicons name="close-circle" size={16} color={C.textMuted} />
             </TouchableOpacity>
-          ) : null}
+          )}
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoryScroll}
-        >
-          {CATEGORIES.map((cat) => (
-            <TouchableOpacity
-              key={cat}
-              onPress={() => setSelectedCategory(cat)}
-              style={[
-                styles.categoryChip,
-                {
-                  backgroundColor: selectedCategory === cat ? theme.primary : theme.card,
-                  borderColor: selectedCategory === cat ? theme.primary : theme.cardBorder,
-                },
-              ]}
-            >
-              <ThemedText
-                weight="medium"
-                style={[
-                  styles.categoryText,
-                  { color: selectedCategory === cat ? "#fff" : theme.textSecondary },
-                ]}
-              >
-                {cat}
-              </ThemedText>
+        {/* Week/All Toggle */}
+        <View style={[s.segmentWrap, { backgroundColor: C.card, borderColor: C.separator }]}>
+          <TouchableOpacity
+            style={[s.segment, view === "week" && [s.segmentActive, { backgroundColor: C.primary }]]}
+            onPress={() => setView("week")}
+          >
+            <Text style={[s.segmentText, { color: view === "week" ? "#fff" : C.textSecondary }]}>Week</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.segment, view === "all" && [s.segmentActive, { backgroundColor: C.primary }]]}
+            onPress={() => setView("all")}
+          >
+            <Text style={[s.segmentText, { color: view === "all" ? "#fff" : C.textSecondary }]}>All</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Week Nav */}
+        {view === "week" && (
+          <View style={[s.weekNav, { backgroundColor: C.card, borderColor: C.separator }]}>
+            <TouchableOpacity onPress={() => setWeekOffset(weekOffset - 1)} style={s.weekArrow}>
+              <Ionicons name="chevron-back" size={18} color={C.textSecondary} />
             </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        {expenses && expenses.length > 0 ? (
-          <View style={styles.totalRow}>
-            <ThemedText variant="muted" style={styles.totalLabel}>
-              {expenses.length} expense{expenses.length !== 1 ? "s" : ""} · Total:
-            </ThemedText>
-            <ThemedText variant="red" weight="semibold" style={styles.totalValue}>
-              {formatCurrency(totalShown)}
-            </ThemedText>
-          </View>
-        ) : null}
-      </View>
-
-      {isLoading ? (
-        <ActivityIndicator color={theme.primary} style={{ marginTop: 40 }} />
-      ) : (
-        <FlatList
-          data={expenses ?? []}
-          keyExtractor={(item: any) => item.id.toString()}
-          contentContainerStyle={{
-            paddingHorizontal: 16,
-            paddingBottom: bottomPad + 100,
-            gap: 8,
-            paddingTop: 8,
-          }}
-          showsVerticalScrollIndicator={false}
-          onRefresh={refetch}
-          refreshing={false}
-          ListEmptyComponent={
-            <View style={styles.empty}>
-              <Feather name="credit-card" size={48} color={theme.textMuted} />
-              <ThemedText variant="muted" style={styles.emptyText}>
-                No expenses found
-              </ThemedText>
-              <TouchableOpacity
-                style={[styles.emptyBtn, { backgroundColor: theme.primary }]}
-                onPress={() => router.push("/add-expense")}
-              >
-                <ThemedText weight="semibold" style={{ color: "#fff", fontSize: 15 }}>
-                  Add Expense
-                </ThemedText>
-              </TouchableOpacity>
+            <View style={s.weekCenter}>
+              <Text style={s.weekRange}>{fmtDate(start)} – {fmtDate(end)}</Text>
+              <Text style={s.weekLbl}>{weekLabel}</Text>
+              <Text style={[s.weekTotal, { color: C.red }]}>
+                Week Total: -${weekTotal.toFixed(2)}
+              </Text>
             </View>
-          }
-          renderItem={({ item }: { item: any }) => (
-            <SwipeableRow onDelete={() => handleDelete(item.id)}>
-              <Card style={styles.expenseCard}>
-                <View style={styles.expenseRow}>
-                  <View
-                    style={[
-                      styles.categoryDot,
-                      { backgroundColor: getCategoryColor(item.category, theme) + "22" },
-                    ]}
-                  >
-                    <View
-                      style={[
-                        styles.categoryDotInner,
-                        { backgroundColor: getCategoryColor(item.category, theme) },
-                      ]}
-                    />
+            <TouchableOpacity
+              onPress={() => setWeekOffset(weekOffset + 1)}
+              style={s.weekArrow}
+              disabled={weekOffset >= 0}
+            >
+              <Ionicons name="chevron-forward" size={18} color={weekOffset >= 0 ? C.textMuted : C.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* List */}
+        {filtered.length === 0 ? (
+          <View style={s.empty}>
+            <Ionicons name="receipt-outline" size={40} color={C.textMuted} />
+            <Text style={s.emptyTitle}>
+              {view === "week" ? "No expenses this week." : "No expenses found."}
+            </Text>
+            <Text style={s.emptySubtitle}>Tap + to log your first expense.</Text>
+          </View>
+        ) : (
+          <View style={s.list}>
+            {filtered.map((e: any) => {
+              const meta = CATEGORY_ICONS[e.category] ?? CATEGORY_ICONS.Other;
+              return (
+                <View key={e.id} style={[s.expenseCard, { backgroundColor: C.card, borderColor: C.separator }]}>
+                  <View style={[s.catIcon, { backgroundColor: meta.bg }]}>
+                    <Ionicons name={meta.icon as any} size={18} color={meta.color} />
                   </View>
-                  <View style={styles.expenseInfo}>
-                    <ThemedText weight="semibold" style={styles.merchant}>
-                      {item.merchant}
-                    </ThemedText>
-                    <View style={styles.expenseMeta}>
-                      <View
-                        style={[
-                          styles.catBadge,
-                          { backgroundColor: getCategoryColor(item.category, theme) + "22" },
-                        ]}
-                      >
-                        <ThemedText
-                          style={[styles.catBadgeText, { color: getCategoryColor(item.category, theme) }]}
-                        >
-                          {item.category}
-                        </ThemedText>
-                      </View>
-                      <ThemedText variant="muted" style={styles.expenseDate}>
-                        {item.date}
-                      </ThemedText>
-                    </View>
-                    {item.notes ? (
-                      <ThemedText variant="muted" style={styles.notes} numberOfLines={1}>
-                        {item.notes}
-                      </ThemedText>
-                    ) : null}
+                  <View style={s.expInfo}>
+                    <Text style={[s.expMerchant, { color: C.text }]}>{e.merchant || e.category}</Text>
+                    <Text style={[s.expMeta, { color: C.textSecondary }]}>
+                      {e.category} · {new Date(e.date || e.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    </Text>
                   </View>
-                  <ThemedText variant="red" weight="bold" style={styles.amount}>
-                    -{formatCurrency(item.amount)}
-                  </ThemedText>
+                  <View style={s.expRight}>
+                    <Text style={[s.expAmt, { color: C.red }]}>-${Number(e.amount).toFixed(2)}</Text>
+                    <TouchableOpacity onPress={() => handleDelete(e.id)} style={s.deleteBtn}>
+                      <Ionicons name="trash-outline" size={15} color={C.textMuted} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              </Card>
-            </SwipeableRow>
-          )}
-        />
-      )}
-    </View>
+              );
+            })}
+          </View>
+        )}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: {
-    paddingHorizontal: 20,
-    paddingBottom: 8,
-  },
-  headerTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  title: { fontSize: 28 },
-  headerActions: { flexDirection: "row", gap: 10, alignItems: "center" },
-  toggleBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  toggleText: { fontSize: 13 },
-  addBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  searchBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 12,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    fontFamily: "Inter_400Regular",
-  },
-  categoryScroll: { gap: 8, paddingBottom: 12 },
-  categoryChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  categoryText: { fontSize: 13 },
-  totalRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 4,
-  },
-  totalLabel: { fontSize: 13 },
-  totalValue: { fontSize: 15 },
-  expenseCard: { padding: 12 },
-  expenseRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-  categoryDot: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  categoryDotInner: { width: 10, height: 10, borderRadius: 5 },
-  expenseInfo: { flex: 1 },
-  merchant: { fontSize: 15 },
-  expenseMeta: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
-  catBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  catBadgeText: { fontSize: 11, fontFamily: "Inter_500Medium" },
-  expenseDate: { fontSize: 12 },
-  notes: { fontSize: 12, marginTop: 2 },
-  amount: { fontSize: 16 },
-  empty: { alignItems: "center", paddingTop: 80, gap: 12 },
-  emptyText: { fontSize: 16 },
-  emptyBtn: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
-    marginTop: 8,
-  },
-});
+function makeStyles(C: typeof Colors.light) {
+  return StyleSheet.create({
+    safe: { flex: 1, backgroundColor: C.background },
+    scroll: { flex: 1 },
+    content: { paddingBottom: 110, gap: 12 },
+    header: { paddingHorizontal: 20, paddingTop: 16 },
+    title: { fontSize: 26, fontWeight: "800", color: C.text },
+    subtitle: { fontSize: 14, color: C.textSecondary, marginTop: 2 },
+    actionRow: { flexDirection: "row", paddingHorizontal: 20, gap: 10, alignItems: "center" },
+    filterBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      paddingHorizontal: 14,
+      paddingVertical: 9,
+      borderRadius: 10,
+      borderWidth: 1.5,
+      borderColor: C.separator,
+      backgroundColor: C.card,
+    },
+    filterText: { fontSize: 14, fontWeight: "600", color: C.text },
+    addBtn: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 6,
+      paddingVertical: 10,
+      borderRadius: 10,
+    },
+    addBtnText: { fontSize: 14, fontWeight: "700", color: "#fff" },
+    searchBox: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      marginHorizontal: 20,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderRadius: 10,
+      borderWidth: 1,
+    },
+    searchInput: { flex: 1, fontSize: 14, paddingVertical: 0 },
+    segmentWrap: {
+      flexDirection: "row",
+      marginHorizontal: 20,
+      borderRadius: 10,
+      borderWidth: 1,
+      padding: 3,
+    },
+    segment: { flex: 1, paddingVertical: 7, alignItems: "center", borderRadius: 8 },
+    segmentActive: {},
+    segmentText: { fontSize: 14, fontWeight: "600" },
+    weekNav: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginHorizontal: 20,
+      borderRadius: 14,
+      borderWidth: 1,
+      padding: 12,
+    },
+    weekArrow: { padding: 4 },
+    weekCenter: { flex: 1, alignItems: "center" },
+    weekRange: { fontSize: 13, fontWeight: "600", color: C.text },
+    weekLbl: { fontSize: 12, color: C.textSecondary, marginTop: 2 },
+    weekTotal: { fontSize: 14, fontWeight: "700", marginTop: 4 },
+    empty: { alignItems: "center", paddingVertical: 60, paddingHorizontal: 40, gap: 8 },
+    emptyTitle: { fontSize: 16, fontWeight: "600", color: C.textSecondary, textAlign: "center" },
+    emptySubtitle: { fontSize: 13, color: C.textMuted, textAlign: "center" },
+    list: { paddingHorizontal: 16, gap: 8 },
+    expenseCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 14,
+      borderRadius: 14,
+      borderWidth: 1,
+      gap: 12,
+    },
+    catIcon: { width: 38, height: 38, borderRadius: 12, justifyContent: "center", alignItems: "center" },
+    expInfo: { flex: 1 },
+    expMerchant: { fontSize: 14, fontWeight: "600" },
+    expMeta: { fontSize: 12, marginTop: 2 },
+    expRight: { alignItems: "flex-end", gap: 6 },
+    expAmt: { fontSize: 15, fontWeight: "700" },
+    deleteBtn: { padding: 2 },
+  });
+}

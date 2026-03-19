@@ -1,329 +1,299 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
-  ScrollView,
-  StyleSheet,
-  TouchableOpacity,
   View,
-  Alert,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  RefreshControl,
+  useColorScheme,
   Platform,
-  ActivityIndicator,
+  Alert,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useColorScheme } from "react-native";
-import { Feather } from "@expo/vector-icons";
-
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import { Colors } from "@/constants/colors";
-import { ThemedText } from "@/components/ThemedText";
-import { Card } from "@/components/Card";
-import { useExpenses, useIncome, useTrips, useFuelEntries } from "@/hooks/useApi";
+import { useSummary, useExpenses, useIncome } from "../../hooks/useApi";
 
-function formatCurrency(val: number) {
-  return `$${Math.abs(val).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function fmtDate(d: Date) {
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-const EXPENSE_CATEGORIES = [
-  "Fuel", "Repairs", "Maintenance", "Insurance", "Tolls", "Parking", "Scale Fee", "Lumper", "Other",
-];
-
-type ReportType = "ifta" | "scheduleC";
+type ReportTab = "all" | "income" | "expenses";
 
 export default function ReportsScreen() {
   const colorScheme = useColorScheme();
-  const isDark = colorScheme !== "light";
-  const theme = isDark ? Colors.dark : Colors.light;
-  const insets = useSafeAreaInsets();
+  const C = Colors[colorScheme === "dark" ? "dark" : "light"];
+  const [tab, setTab] = useState<ReportTab>("all");
+  const [refreshing, setRefreshing] = useState(false);
 
-  const [activeReport, setActiveReport] = useState<ReportType>("ifta");
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now);
+  thirtyDaysAgo.setDate(now.getDate() - 30);
 
-  const { data: expenses, isLoading: loadingExp } = useExpenses();
-  const { data: income, isLoading: loadingInc } = useIncome();
-  const { data: trips, isLoading: loadingTrips } = useTrips();
-  const { data: fuel, isLoading: loadingFuel } = useFuelEntries();
+  const { data: summary, refetch: refetchSummary } = useSummary();
+  const { data: expenses, refetch: refetchExpenses } = useExpenses();
+  const { data: income, refetch: refetchIncome } = useIncome();
 
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
+  useFocusEffect(
+    useCallback(() => {
+      refetchSummary();
+      refetchExpenses();
+      refetchIncome();
+    }, [])
+  );
 
-  const isLoading = loadingExp || loadingInc || loadingTrips || loadingFuel;
-
-  const milesByJurisdiction = (trips ?? []).reduce((acc: Record<string, { loaded: number; empty: number }>, t: any) => {
-    if (!acc[t.jurisdiction]) acc[t.jurisdiction] = { loaded: 0, empty: 0 };
-    acc[t.jurisdiction].loaded += t.loadedMiles;
-    acc[t.jurisdiction].empty += t.emptyMiles;
-    return acc;
-  }, {});
-
-  const fuelByJurisdiction = (fuel ?? []).reduce((acc: Record<string, { gallons: number; amount: number }>, f: any) => {
-    if (!acc[f.jurisdiction]) acc[f.jurisdiction] = { gallons: 0, amount: 0 };
-    acc[f.jurisdiction].gallons += f.gallons;
-    acc[f.jurisdiction].amount += f.totalAmount;
-    return acc;
-  }, {});
-
-  const allJurisdictions = Array.from(
-    new Set([...Object.keys(milesByJurisdiction), ...Object.keys(fuelByJurisdiction)])
-  ).sort();
-
-  const expenseByCategory = EXPENSE_CATEGORIES.reduce((acc: Record<string, number>, cat) => {
-    acc[cat] = (expenses ?? [])
-      .filter((e: any) => e.category === cat)
-      .reduce((s: number, e: any) => s + e.amount, 0);
-    return acc;
-  }, {});
-
-  const totalIncome = (income ?? []).reduce((s: number, i: any) => s + i.amount, 0);
-  const totalExpenses = (expenses ?? []).reduce((s: number, e: any) => s + e.amount, 0);
-
-  const exportCSV = (type: ReportType) => {
-    Alert.alert(
-      "Export",
-      `${type === "ifta" ? "IFTA" : "Schedule C"} report data is ready. In a production app this would download a CSV file.`,
-      [{ text: "OK" }]
-    );
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([refetchSummary(), refetchExpenses(), refetchIncome()]);
+    setRefreshing(false);
   };
 
+  const totalIncome = summary?.totalIncome ?? 0;
+  const totalExpenses = summary?.totalExpenses ?? 0;
+  const netProfit = summary?.netProfit ?? 0;
+
+  // Group expenses by category
+  const expenseByCategory: Record<string, number> = {};
+  (expenses ?? []).forEach((e: any) => {
+    const cat = e.category || "Other";
+    expenseByCategory[cat] = (expenseByCategory[cat] ?? 0) + Number(e.amount);
+  });
+
+  const handleExportCSV = () => {
+    Alert.alert("Export", "CSV export is available on device builds.");
+  };
+
+  const s = makeStyles(C);
+
+  const TABS: { key: ReportTab; label: string }[] = [
+    { key: "all", label: "All" },
+    { key: "income", label: "Income" },
+    { key: "expenses", label: "Expenses" },
+  ];
+
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: theme.background }]}
-      contentContainerStyle={{
-        paddingTop: topPad + 12,
-        paddingBottom: bottomPad + 100,
-        paddingHorizontal: 20,
-      }}
-      showsVerticalScrollIndicator={false}
-    >
-      <ThemedText weight="bold" style={styles.title}>
-        Reports
-      </ThemedText>
-
-      <View style={styles.tabRow}>
-        <TouchableOpacity
-          style={[
-            styles.tabBtn,
-            {
-              backgroundColor: activeReport === "ifta" ? theme.primary : theme.card,
-              borderColor: activeReport === "ifta" ? theme.primary : theme.cardBorder,
-            },
-          ]}
-          onPress={() => setActiveReport("ifta")}
-        >
-          <ThemedText
-            weight="semibold"
-            style={{ color: activeReport === "ifta" ? "#fff" : theme.textSecondary }}
-          >
-            IFTA Report
-          </ThemedText>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.tabBtn,
-            {
-              backgroundColor: activeReport === "scheduleC" ? theme.primary : theme.card,
-              borderColor: activeReport === "scheduleC" ? theme.primary : theme.cardBorder,
-            },
-          ]}
-          onPress={() => setActiveReport("scheduleC")}
-        >
-          <ThemedText
-            weight="semibold"
-            style={{ color: activeReport === "scheduleC" ? "#fff" : theme.textSecondary }}
-          >
-            Schedule C
-          </ThemedText>
-        </TouchableOpacity>
-      </View>
-
-      {isLoading ? (
-        <ActivityIndicator color={theme.primary} style={{ marginTop: 40 }} />
-      ) : activeReport === "ifta" ? (
-        <>
-          <View style={styles.sectionHeader}>
-            <ThemedText weight="semibold" style={styles.sectionTitle}>
-              Miles by Jurisdiction
-            </ThemedText>
+    <SafeAreaView style={s.safe} edges={["top"]}>
+      <ScrollView
+        style={s.scroll}
+        contentContainerStyle={s.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} />}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header */}
+        <View style={s.header}>
+          <Text style={s.title}>Reports</Text>
+          <View style={s.headerBtns}>
+            <TouchableOpacity style={[s.headerBtn, { borderColor: C.separator, backgroundColor: C.card }]}>
+              <Ionicons name="document-text-outline" size={14} color={C.text} />
+              <Text style={[s.headerBtnText, { color: C.text }]}>IFTA</Text>
+            </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.exportBtn, { backgroundColor: theme.primary + "22", borderColor: theme.primary + "44" }]}
-              onPress={() => exportCSV("ifta")}
+              style={[s.headerBtn, { borderColor: C.separator, backgroundColor: C.card }]}
+              onPress={handleExportCSV}
             >
-              <Feather name="download" size={14} color={theme.primary} />
-              <ThemedText variant="primary" style={styles.exportText}>
-                Export CSV
-              </ThemedText>
+              <Ionicons name="download-outline" size={14} color={C.text} />
+              <Text style={[s.headerBtnText, { color: C.text }]}>Export</Text>
             </TouchableOpacity>
           </View>
+        </View>
 
-          {allJurisdictions.length === 0 ? (
-            <ThemedText variant="muted" style={styles.noData}>
-              No trip data yet
-            </ThemedText>
-          ) : (
-            allJurisdictions.map((juris) => {
-              const miles = milesByJurisdiction[juris];
-              const fuelData = fuelByJurisdiction[juris];
-              const totalMiles = (miles?.loaded ?? 0) + (miles?.empty ?? 0);
-              const taxCalc = totalMiles > 0
-                ? ((miles?.loaded ?? 0) / totalMiles) * (fuelData?.gallons ?? 0) * 0.246
-                : 0;
-              return (
-                <Card key={juris} style={styles.jurisCard}>
-                  <View style={styles.jurisHeader}>
-                    <View style={[styles.jurisBadge, { backgroundColor: theme.primary + "22" }]}>
-                      <ThemedText variant="primary" weight="bold" style={styles.jurisCode}>
-                        {juris}
-                      </ThemedText>
-                    </View>
-                    <View style={{ flex: 1 }} />
-                    <ThemedText variant="secondary" style={styles.taxEst}>
-                      Tax est: {formatCurrency(taxCalc)}
-                    </ThemedText>
-                  </View>
-                  <View style={styles.jurisStats}>
-                    <View style={styles.jStat}>
-                      <ThemedText variant="muted" style={styles.jStatLabel}>Loaded</ThemedText>
-                      <ThemedText weight="semibold" style={styles.jStatValue}>
-                        {(miles?.loaded ?? 0).toFixed(0)} mi
-                      </ThemedText>
-                    </View>
-                    <View style={styles.jStat}>
-                      <ThemedText variant="muted" style={styles.jStatLabel}>Empty</ThemedText>
-                      <ThemedText weight="semibold" style={styles.jStatValue}>
-                        {(miles?.empty ?? 0).toFixed(0)} mi
-                      </ThemedText>
-                    </View>
-                    <View style={styles.jStat}>
-                      <ThemedText variant="muted" style={styles.jStatLabel}>Fuel Gal</ThemedText>
-                      <ThemedText weight="semibold" style={styles.jStatValue}>
-                        {(fuelData?.gallons ?? 0).toFixed(1)}
-                      </ThemedText>
-                    </View>
-                    <View style={styles.jStat}>
-                      <ThemedText variant="muted" style={styles.jStatLabel}>Fuel $</ThemedText>
-                      <ThemedText weight="semibold" style={styles.jStatValue}>
-                        {formatCurrency(fuelData?.amount ?? 0)}
-                      </ThemedText>
-                    </View>
-                  </View>
-                </Card>
-              );
-            })
-          )}
-        </>
-      ) : (
-        <>
-          <View style={styles.sectionHeader}>
-            <ThemedText weight="semibold" style={styles.sectionTitle}>
-              Schedule C Summary
-            </ThemedText>
+        {/* Date Range */}
+        <View style={[s.dateRow, { backgroundColor: C.card, borderColor: C.separator }]}>
+          <Ionicons name="calendar-outline" size={15} color={C.primary} />
+          <Text style={[s.dateText, { color: C.text }]}>{fmtDate(thirtyDaysAgo)}</Text>
+          <Ionicons name="arrow-forward" size={14} color={C.textMuted} style={{ marginHorizontal: 6 }} />
+          <Ionicons name="calendar-outline" size={15} color={C.primary} />
+          <Text style={[s.dateText, { color: C.text }]}>{fmtDate(now)}</Text>
+        </View>
+
+        {/* Segment Tabs */}
+        <View style={[s.segmentWrap, { backgroundColor: C.card, borderColor: C.separator }]}>
+          {TABS.map((t) => (
             <TouchableOpacity
-              style={[styles.exportBtn, { backgroundColor: theme.primary + "22", borderColor: theme.primary + "44" }]}
-              onPress={() => exportCSV("scheduleC")}
+              key={t.key}
+              style={[s.segment, tab === t.key && [s.segmentActive, { backgroundColor: C.primary }]]}
+              onPress={() => setTab(t.key)}
             >
-              <Feather name="download" size={14} color={theme.primary} />
-              <ThemedText variant="primary" style={styles.exportText}>
-                Export CSV
-              </ThemedText>
+              {t.key === "income" && (
+                <Ionicons name="trending-up" size={13} color={tab === t.key ? "#fff" : C.textSecondary} style={{ marginRight: 3 }} />
+              )}
+              {t.key === "expenses" && (
+                <Ionicons name="trending-down" size={13} color={tab === t.key ? "#fff" : C.textSecondary} style={{ marginRight: 3 }} />
+              )}
+              {t.key === "all" && (
+                <Ionicons name="grid" size={13} color={tab === t.key ? "#fff" : C.textSecondary} style={{ marginRight: 3 }} />
+              )}
+              <Text style={[s.segmentText, { color: tab === t.key ? "#fff" : C.textSecondary }]}>{t.label}</Text>
             </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Net Profit Summary */}
+        {(tab === "all" || tab === "income" || tab === "expenses") && (
+          <View style={[s.summaryCard, { backgroundColor: C.card, borderColor: C.separator }]}>
+            <Text style={[s.summaryLabel, { color: C.textSecondary }]}>NET PROFIT</Text>
+            <Text style={[s.summaryAmt, { color: C.green }]}>${netProfit.toFixed(2)}</Text>
+            <View style={s.summaryRow}>
+              <View style={[s.miniCard, { backgroundColor: C.greenLight }]}>
+                <Text style={[s.miniLabel, { color: C.green }]}>INCOME</Text>
+                <Text style={[s.miniAmt, { color: C.green }]}>${totalIncome.toFixed(0)}</Text>
+              </View>
+              <View style={[s.miniCard, { backgroundColor: C.redLight }]}>
+                <Text style={[s.miniLabel, { color: C.red }]}>EXPENSES</Text>
+                <Text style={[s.miniAmt, { color: C.red }]}>${totalExpenses.toFixed(0)}</Text>
+              </View>
+            </View>
           </View>
+        )}
 
-          <Card style={styles.summaryBlock}>
-            <View style={styles.summaryRow}>
-              <ThemedText variant="secondary">Gross Income</ThemedText>
-              <ThemedText variant="green" weight="bold">+{formatCurrency(totalIncome)}</ThemedText>
-            </View>
-            <View style={[styles.divider, { backgroundColor: theme.separator }]} />
-            <View style={styles.summaryRow}>
-              <ThemedText variant="secondary">Total Expenses</ThemedText>
-              <ThemedText variant="red" weight="bold">-{formatCurrency(totalExpenses)}</ThemedText>
-            </View>
-            <View style={[styles.divider, { backgroundColor: theme.separator }]} />
-            <View style={styles.summaryRow}>
-              <ThemedText weight="bold">Net Profit / Loss</ThemedText>
-              <ThemedText
-                weight="bold"
-                style={{ color: totalIncome - totalExpenses >= 0 ? theme.green : theme.red }}
-              >
-                {totalIncome - totalExpenses >= 0 ? "+" : "-"}
-                {formatCurrency(totalIncome - totalExpenses)}
-              </ThemedText>
-            </View>
-          </Card>
-
-          <ThemedText weight="semibold" style={[styles.sectionTitle, { marginTop: 16 }]}>
-            Expenses by Category
-          </ThemedText>
-          {EXPENSE_CATEGORIES.map((cat) => {
-            const amt = expenseByCategory[cat] ?? 0;
-            if (amt === 0) return null;
-            return (
-              <Card key={cat} style={styles.catCard}>
-                <View style={styles.catRow}>
-                  <ThemedText variant="secondary" style={styles.catName}>
-                    {cat}
-                  </ThemedText>
-                  <ThemedText variant="red" weight="semibold" style={styles.catAmount}>
-                    -{formatCurrency(amt)}
-                  </ThemedText>
+        {/* Expense Breakdown */}
+        {(tab === "all" || tab === "expenses") && (
+          <View style={[s.section, { backgroundColor: C.card, borderColor: C.separator }]}>
+            <Text style={s.sectionTitle}>EXPENSE BREAKDOWN</Text>
+            {Object.keys(expenseByCategory).length === 0 ? (
+              <View style={s.empty}>
+                <Ionicons name="receipt-outline" size={36} color={C.textMuted} />
+                <Text style={[s.emptyText, { color: C.textMuted }]}>No expenses in range</Text>
+              </View>
+            ) : (
+              Object.entries(expenseByCategory).map(([cat, amt]) => (
+                <View key={cat} style={s.breakdownRow}>
+                  <Text style={[s.breakdownCat, { color: C.text }]}>{cat}</Text>
+                  <Text style={[s.breakdownAmt, { color: C.red }]}>-${amt.toFixed(2)}</Text>
                 </View>
-              </Card>
-            );
-          })}
-        </>
-      )}
-    </ScrollView>
+              ))
+            )}
+          </View>
+        )}
+
+        {/* Income vs Expenses */}
+        {(tab === "all" || tab === "income") && (
+          <View style={[s.section, { backgroundColor: C.card, borderColor: C.separator }]}>
+            <Text style={s.sectionTitle}>INCOME VS EXPENSES</Text>
+            {totalIncome === 0 && totalExpenses === 0 ? (
+              <View style={s.empty}>
+                <Text style={[s.emptyText, { color: C.textMuted }]}>No data in range</Text>
+              </View>
+            ) : (
+              <View style={s.barChart}>
+                <View style={s.barRow}>
+                  <Text style={[s.barLabel, { color: C.textSecondary }]}>Income</Text>
+                  <View style={[s.barTrack, { backgroundColor: C.background }]}>
+                    <View
+                      style={[
+                        s.barFill,
+                        {
+                          backgroundColor: C.green,
+                          width: `${Math.min(100, (totalIncome / Math.max(totalIncome, totalExpenses, 1)) * 100)}%`,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text style={[s.barAmt, { color: C.green }]}>${totalIncome.toFixed(0)}</Text>
+                </View>
+                <View style={s.barRow}>
+                  <Text style={[s.barLabel, { color: C.textSecondary }]}>Expenses</Text>
+                  <View style={[s.barTrack, { backgroundColor: C.background }]}>
+                    <View
+                      style={[
+                        s.barFill,
+                        {
+                          backgroundColor: C.red,
+                          width: `${Math.min(100, (totalExpenses / Math.max(totalIncome, totalExpenses, 1)) * 100)}%`,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text style={[s.barAmt, { color: C.red }]}>${totalExpenses.toFixed(0)}</Text>
+                </View>
+              </View>
+            )}
+          </View>
+        )}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  title: { fontSize: 28, marginBottom: 20 },
-  tabRow: { flexDirection: "row", gap: 12, marginBottom: 24 },
-  tabBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    alignItems: "center",
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  sectionTitle: { fontSize: 18 },
-  exportBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  exportText: { fontSize: 13 },
-  noData: { fontSize: 15, textAlign: "center", marginVertical: 20 },
-  jurisCard: { marginBottom: 10 },
-  jurisHeader: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
-  jurisBadge: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  jurisCode: { fontSize: 16 },
-  taxEst: { fontSize: 13 },
-  jurisStats: { flexDirection: "row", gap: 12 },
-  jStat: { flex: 1 },
-  jStatLabel: { fontSize: 11 },
-  jStatValue: { fontSize: 14, marginTop: 2 },
-  summaryBlock: { marginBottom: 8 },
-  summaryRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 4,
-  },
-  divider: { height: 1, marginVertical: 8 },
-  catCard: { marginBottom: 8, padding: 12 },
-  catRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  catName: { fontSize: 15 },
-  catAmount: { fontSize: 15 },
-});
+function makeStyles(C: typeof Colors.light) {
+  return StyleSheet.create({
+    safe: { flex: 1, backgroundColor: C.background },
+    scroll: { flex: 1 },
+    content: { paddingBottom: 110, gap: 12 },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 20,
+      paddingTop: 16,
+    },
+    title: { fontSize: 26, fontWeight: "800", color: C.text },
+    headerBtns: { flexDirection: "row", gap: 8 },
+    headerBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+      paddingHorizontal: 10,
+      paddingVertical: 7,
+      borderRadius: 10,
+      borderWidth: 1,
+    },
+    headerBtnText: { fontSize: 13, fontWeight: "600" },
+    dateRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginHorizontal: 20,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderRadius: 12,
+      borderWidth: 1,
+    },
+    dateText: { fontSize: 13, fontWeight: "500", marginLeft: 5 },
+    segmentWrap: {
+      flexDirection: "row",
+      marginHorizontal: 20,
+      borderRadius: 12,
+      borderWidth: 1,
+      padding: 3,
+    },
+    segment: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 8, borderRadius: 10 },
+    segmentActive: {},
+    segmentText: { fontSize: 13, fontWeight: "600" },
+    summaryCard: {
+      marginHorizontal: 20,
+      borderRadius: 16,
+      padding: 20,
+      alignItems: "center",
+      borderWidth: 1,
+      gap: 4,
+    },
+    summaryLabel: { fontSize: 11, fontWeight: "700", letterSpacing: 0.8 },
+    summaryAmt: { fontSize: 40, fontWeight: "800" },
+    summaryRow: { flexDirection: "row", gap: 12, marginTop: 12, width: "100%" },
+    miniCard: { flex: 1, borderRadius: 12, padding: 12, alignItems: "center" },
+    miniLabel: { fontSize: 10, fontWeight: "700", letterSpacing: 0.6 },
+    miniAmt: { fontSize: 22, fontWeight: "800", marginTop: 4 },
+    section: { marginHorizontal: 20, borderRadius: 16, padding: 16, borderWidth: 1 },
+    sectionTitle: { fontSize: 11, fontWeight: "700", color: C.textSecondary, letterSpacing: 0.8, marginBottom: 12 },
+    empty: { alignItems: "center", paddingVertical: 32, gap: 8 },
+    emptyText: { fontSize: 14 },
+    breakdownRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingVertical: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: C.separator,
+    },
+    breakdownCat: { fontSize: 14, fontWeight: "500" },
+    breakdownAmt: { fontSize: 14, fontWeight: "700" },
+    barChart: { gap: 14 },
+    barRow: { gap: 6 },
+    barLabel: { fontSize: 12, fontWeight: "500" },
+    barTrack: { height: 10, borderRadius: 5, overflow: "hidden" },
+    barFill: { height: 10, borderRadius: 5 },
+    barAmt: { fontSize: 13, fontWeight: "700" },
+  });
+}

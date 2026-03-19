@@ -1,42 +1,64 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
-  FlatList,
-  StyleSheet,
-  TouchableOpacity,
   View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  RefreshControl,
   Alert,
-  Platform,
-  ActivityIndicator,
+  useColorScheme,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useColorScheme } from "react-native";
-import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-
+import { useFocusEffect } from "@react-navigation/native";
 import { Colors } from "@/constants/colors";
-import { ThemedText } from "@/components/ThemedText";
-import { Card } from "@/components/Card";
-import { SwipeableRow } from "@/components/SwipeableRow";
-import { useIncome, useDeleteIncome } from "@/hooks/useApi";
+import { useIncome, useDeleteIncome } from "../../hooks/useApi";
 
-function formatCurrency(val: number) {
-  return `$${val.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function getWeekBounds(offset: number) {
+  const now = new Date();
+  const day = now.getDay();
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1) + offset * 7);
+  monday.setHours(0, 0, 0, 0);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
+  return { start: monday, end: sunday };
+}
+
+function fmtDate(d: Date) {
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
 export default function IncomeScreen() {
   const colorScheme = useColorScheme();
-  const isDark = colorScheme !== "light";
-  const theme = isDark ? Colors.dark : Colors.light;
-  const insets = useSafeAreaInsets();
-  const [showWeekOnly, setShowWeekOnly] = useState(false);
+  const C = Colors[colorScheme === "dark" ? "dark" : "light"];
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const { data: income, isLoading, refetch } = useIncome({ week: showWeekOnly });
+  const { data: income, refetch } = useIncome();
   const deleteIncome = useDeleteIncome();
 
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
+  useFocusEffect(useCallback(() => { refetch(); }, []));
 
-  const total = income?.reduce((s: number, i: any) => s + i.amount, 0) ?? 0;
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  };
+
+  const { start, end } = getWeekBounds(weekOffset);
+  const isCurrentWeek = weekOffset === 0;
+  const weekLabel = isCurrentWeek ? "This Week" : weekOffset === -1 ? "Last Week" : "";
+
+  const weekIncome = (income ?? []).filter((i: any) => {
+    const d = new Date(i.date || i.createdAt);
+    return d >= start && d <= end;
+  });
+
+  const weekTotal = weekIncome.reduce((sum: number, i: any) => sum + Number(i.amount), 0);
 
   const handleDelete = (id: number) => {
     Alert.alert("Delete Income", "Remove this income entry?", [
@@ -44,201 +66,143 @@ export default function IncomeScreen() {
       {
         text: "Delete",
         style: "destructive",
-        onPress: () => deleteIncome.mutate(id),
+        onPress: () => deleteIncome.mutate(id, { onSuccess: () => refetch() }),
       },
     ]);
   };
 
+  const s = makeStyles(C);
+
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + 12 }]}>
-        <View style={styles.headerTop}>
-          <ThemedText weight="bold" style={styles.title}>
-            Income
-          </ThemedText>
-          <View style={styles.headerActions}>
-            <TouchableOpacity
-              onPress={() => setShowWeekOnly(!showWeekOnly)}
-              style={[
-                styles.toggleBtn,
-                {
-                  backgroundColor: showWeekOnly ? theme.primary : theme.card,
-                  borderColor: showWeekOnly ? theme.primary : theme.cardBorder,
-                },
-              ]}
-            >
-              <ThemedText
-                weight="medium"
-                style={[styles.toggleText, { color: showWeekOnly ? "#fff" : theme.text }]}
-              >
-                Week
-              </ThemedText>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.addBtn, { backgroundColor: theme.green }]}
-              onPress={() => router.push("/add-income")}
-            >
-              <Feather name="plus" size={20} color="#fff" />
-            </TouchableOpacity>
-          </View>
+    <SafeAreaView style={s.safe} edges={["top"]}>
+      <ScrollView
+        style={s.scroll}
+        contentContainerStyle={s.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} />}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header */}
+        <View style={s.header}>
+          <Text style={s.title}>Income</Text>
+          <Text style={s.subtitle}>Log your loads and settlements.</Text>
         </View>
 
-        {income && income.length > 0 ? (
-          <Card style={styles.totalCard}>
-            <View style={styles.totalRow}>
-              <View style={[styles.totalIcon, { backgroundColor: theme.green + "22" }]}>
-                <MaterialCommunityIcons name="cash" size={20} color={theme.green} />
-              </View>
-              <View>
-                <ThemedText variant="secondary" style={styles.totalLabel}>
-                  {showWeekOnly ? "This Week" : "All Time"} Total
-                </ThemedText>
-                <ThemedText variant="green" weight="bold" style={styles.totalValue}>
-                  +{formatCurrency(total)}
-                </ThemedText>
-              </View>
-            </View>
-          </Card>
-        ) : null}
-      </View>
+        {/* Add Button */}
+        <TouchableOpacity
+          style={[s.addBtn, { borderColor: C.green }]}
+          onPress={() => router.push("/add-income")}
+        >
+          <Ionicons name="add" size={17} color={C.green} />
+          <Text style={[s.addBtnText, { color: C.green }]}>Add Income</Text>
+        </TouchableOpacity>
 
-      {isLoading ? (
-        <ActivityIndicator color={theme.primary} style={{ marginTop: 40 }} />
-      ) : (
-        <FlatList
-          data={income ?? []}
-          keyExtractor={(item: any) => item.id.toString()}
-          contentContainerStyle={{
-            paddingHorizontal: 16,
-            paddingBottom: bottomPad + 100,
-            gap: 8,
-            paddingTop: 8,
-          }}
-          showsVerticalScrollIndicator={false}
-          onRefresh={refetch}
-          refreshing={false}
-          ListEmptyComponent={
-            <View style={styles.empty}>
-              <MaterialCommunityIcons name="cash" size={48} color={theme.textMuted} />
-              <ThemedText variant="muted" style={styles.emptyText}>
-                No income entries yet
-              </ThemedText>
-              <TouchableOpacity
-                style={[styles.emptyBtn, { backgroundColor: theme.green }]}
-                onPress={() => router.push("/add-income")}
-              >
-                <ThemedText weight="semibold" style={{ color: "#fff", fontSize: 15 }}>
-                  Log Income
-                </ThemedText>
-              </TouchableOpacity>
-            </View>
-          }
-          renderItem={({ item }: { item: any }) => (
-            <SwipeableRow onDelete={() => handleDelete(item.id)}>
-              <Card style={styles.incomeCard}>
-                <View style={styles.incomeRow}>
-                  <View style={[styles.incomeIcon, { backgroundColor: theme.green + "22" }]}>
-                    <Feather name="arrow-down-left" size={18} color={theme.green} />
-                  </View>
-                  <View style={styles.incomeInfo}>
-                    <ThemedText weight="semibold" style={styles.source}>
-                      {item.source}
-                    </ThemedText>
-                    <View style={styles.incomeMeta}>
-                      {item.routeName ? (
-                        <ThemedText variant="muted" style={styles.metaText}>
-                          {item.routeName}
-                        </ThemedText>
-                      ) : null}
-                      {item.trailerNumber ? (
-                        <ThemedText variant="muted" style={styles.metaText}>
-                          Trailer #{item.trailerNumber}
-                        </ThemedText>
-                      ) : null}
-                    </View>
-                    <ThemedText variant="muted" style={styles.incomeDate}>
-                      {item.date}
-                    </ThemedText>
-                    {item.notes ? (
-                      <ThemedText variant="muted" style={styles.notes} numberOfLines={1}>
-                        {item.notes}
-                      </ThemedText>
-                    ) : null}
-                  </View>
-                  <ThemedText variant="green" weight="bold" style={styles.amount}>
-                    +{formatCurrency(item.amount)}
-                  </ThemedText>
+        {/* Week Nav */}
+        <View style={[s.weekNav, { backgroundColor: C.card, borderColor: C.separator }]}>
+          <TouchableOpacity onPress={() => setWeekOffset(weekOffset - 1)} style={s.weekArrow}>
+            <Ionicons name="chevron-back" size={18} color={C.textSecondary} />
+          </TouchableOpacity>
+          <View style={s.weekCenter}>
+            <Text style={s.weekRange}>{fmtDate(start)} – {fmtDate(end)}</Text>
+            <Text style={s.weekLbl}>{weekLabel}</Text>
+            <Text style={[s.weekTotal, { color: C.green }]}>
+              Week Total: +${weekTotal.toFixed(2)}
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={() => setWeekOffset(weekOffset + 1)}
+            style={s.weekArrow}
+            disabled={weekOffset >= 0}
+          >
+            <Ionicons name="chevron-forward" size={18} color={weekOffset >= 0 ? C.textMuted : C.textSecondary} />
+          </TouchableOpacity>
+        </View>
+
+        {/* List or empty */}
+        {weekIncome.length === 0 ? (
+          <View style={s.empty}>
+            <Ionicons name="trending-up-outline" size={44} color={C.textMuted} />
+            <Text style={s.emptyTitle}>No income logged this week.</Text>
+            <Text style={s.emptySubtitle}>Tap + to add a load.</Text>
+          </View>
+        ) : (
+          <View style={s.list}>
+            {weekIncome.map((item: any) => (
+              <View key={item.id} style={[s.incomeCard, { backgroundColor: C.card, borderColor: C.separator }]}>
+                <View style={[s.iconBubble, { backgroundColor: C.greenLight }]}>
+                  <Ionicons name="trending-up" size={18} color={C.green} />
                 </View>
-              </Card>
-            </SwipeableRow>
-          )}
-        />
-      )}
-    </View>
+                <View style={s.info}>
+                  <Text style={[s.desc, { color: C.text }]}>{item.description || "Load Income"}</Text>
+                  <Text style={[s.meta, { color: C.textSecondary }]}>
+                    {item.loadNumber ? `Load #${item.loadNumber} · ` : ""}
+                    {new Date(item.date || item.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  </Text>
+                </View>
+                <View style={s.right}>
+                  <Text style={[s.amt, { color: C.green }]}>+${Number(item.amount).toFixed(2)}</Text>
+                  <TouchableOpacity onPress={() => handleDelete(item.id)} style={s.deleteBtn}>
+                    <Ionicons name="trash-outline" size={15} color={C.textMuted} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: {
-    paddingHorizontal: 20,
-    paddingBottom: 8,
-  },
-  headerTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  title: { fontSize: 28 },
-  headerActions: { flexDirection: "row", gap: 10, alignItems: "center" },
-  toggleBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  toggleText: { fontSize: 13 },
-  addBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  totalCard: { marginBottom: 8 },
-  totalRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-  totalIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  totalLabel: { fontSize: 13 },
-  totalValue: { fontSize: 22 },
-  incomeCard: { padding: 14 },
-  incomeRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-  incomeIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  incomeInfo: { flex: 1 },
-  source: { fontSize: 16 },
-  incomeMeta: { flexDirection: "row", gap: 8, marginTop: 4 },
-  metaText: { fontSize: 12 },
-  incomeDate: { fontSize: 12, marginTop: 2 },
-  notes: { fontSize: 12, marginTop: 2 },
-  amount: { fontSize: 18 },
-  empty: { alignItems: "center", paddingTop: 80, gap: 12 },
-  emptyText: { fontSize: 16 },
-  emptyBtn: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
-    marginTop: 8,
-  },
-});
+function makeStyles(C: typeof Colors.light) {
+  return StyleSheet.create({
+    safe: { flex: 1, backgroundColor: C.background },
+    scroll: { flex: 1 },
+    content: { paddingBottom: 110, gap: 14 },
+    header: { paddingHorizontal: 20, paddingTop: 16 },
+    title: { fontSize: 26, fontWeight: "800", color: C.text },
+    subtitle: { fontSize: 14, color: C.textSecondary, marginTop: 2 },
+    addBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 6,
+      marginHorizontal: 20,
+      paddingVertical: 12,
+      borderRadius: 12,
+      borderWidth: 1.5,
+    },
+    addBtnText: { fontSize: 15, fontWeight: "700" },
+    weekNav: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginHorizontal: 20,
+      borderRadius: 14,
+      borderWidth: 1,
+      padding: 14,
+    },
+    weekArrow: { padding: 4 },
+    weekCenter: { flex: 1, alignItems: "center" },
+    weekRange: { fontSize: 13, fontWeight: "600", color: C.text },
+    weekLbl: { fontSize: 12, color: C.textSecondary, marginTop: 2 },
+    weekTotal: { fontSize: 14, fontWeight: "700", marginTop: 4 },
+    empty: { alignItems: "center", paddingVertical: 60, paddingHorizontal: 40, gap: 8 },
+    emptyTitle: { fontSize: 16, fontWeight: "600", color: C.textSecondary, textAlign: "center" },
+    emptySubtitle: { fontSize: 13, color: C.textMuted, textAlign: "center" },
+    list: { paddingHorizontal: 16, gap: 8 },
+    incomeCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 14,
+      borderRadius: 14,
+      borderWidth: 1,
+      gap: 12,
+    },
+    iconBubble: { width: 38, height: 38, borderRadius: 12, justifyContent: "center", alignItems: "center" },
+    info: { flex: 1 },
+    desc: { fontSize: 14, fontWeight: "600" },
+    meta: { fontSize: 12, marginTop: 2 },
+    right: { alignItems: "flex-end", gap: 6 },
+    amt: { fontSize: 15, fontWeight: "700" },
+    deleteBtn: { padding: 2 },
+  });
+}
