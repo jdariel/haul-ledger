@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  Modal,
   Animated,
   Pressable,
   Platform,
@@ -16,7 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { Colors } from "@/constants/colors";
-import { useSummary, useExpenses, useIncome } from "../../hooks/useApi";
+import { useSummary } from "../../hooks/useApi";
 import { useColorScheme } from "@/hooks/useColorScheme";
 
 const TAB_BAR_HEIGHT = 56;
@@ -49,21 +48,18 @@ export default function HomeScreen() {
       else if (action === "scan") router.push("/add-expense?scan=1");
     }, 150);
   };
-  const { data: summary, refetch: refetchSummary } = useSummary();
-  const { data: expenses, refetch: refetchExpenses } = useExpenses();
-  const { data: income, refetch: refetchIncome } = useIncome();
+
+  const { data: summary, refetch: refetchSummary } = useSummary(period);
 
   useFocusEffect(
     useCallback(() => {
       refetchSummary();
-      refetchExpenses();
-      refetchIncome();
-    }, [])
+    }, [period])
   );
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([refetchSummary(), refetchExpenses(), refetchIncome()]);
+    await refetchSummary();
     setRefreshing(false);
   };
 
@@ -71,15 +67,17 @@ export default function HomeScreen() {
   const totalExpenses = summary?.totalExpenses ?? 0;
   const netProfit = summary?.netProfit ?? 0;
   const weeklyMiles = summary?.weeklyMiles ?? 0;
-
-  const recentActivity = [
-    ...(income ?? []).map((i: any) => ({ ...i, _type: "income" })),
-    ...(expenses ?? []).map((e: any) => ({ ...e, _type: "expense" })),
-  ]
-    .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime())
-    .slice(0, 5);
+  const recentActivity: any[] = summary?.recentActivity ?? [];
 
   const s = makeStyles(C);
+
+  const handleActivityPress = (item: any) => {
+    if (item.type === "expense") {
+      router.push(`/expense-detail?id=${item.id}`);
+    } else {
+      router.push(`/income-detail?id=${item.id}`);
+    }
+  };
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
@@ -91,7 +89,7 @@ export default function HomeScreen() {
       >
         {/* Header */}
         <View style={s.header}>
-          <Text style={s.title}>This Week</Text>
+          <Text style={s.title}>{period === "week" ? "This Week" : "This Month"}</Text>
           <View style={s.toggle}>
             <TouchableOpacity
               style={[s.toggleBtn, period === "week" && s.toggleBtnActive]}
@@ -179,7 +177,7 @@ export default function HomeScreen() {
         <View style={s.section}>
           <View style={s.sectionRow}>
             <Text style={s.sectionTitle}>Recent Activity</Text>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push("/(tabs)/expenses")}>
               <Text style={[s.viewAll, { color: C.primary }]}>View All</Text>
             </TouchableOpacity>
           </View>
@@ -189,9 +187,17 @@ export default function HomeScreen() {
             </View>
           ) : (
             recentActivity.map((item: any, i: number) => {
-              const isIncome = item._type === "income";
+              const isIncome = item.type === "income";
+              const displayDate = item.date
+                ? new Date(item.date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                : "—";
               return (
-                <View key={i} style={s.actRow}>
+                <TouchableOpacity
+                  key={i}
+                  style={s.actRow}
+                  onPress={() => handleActivityPress(item)}
+                  activeOpacity={0.7}
+                >
                   <View style={[s.actIcon, { backgroundColor: isIncome ? C.greenLight : C.redLight }]}>
                     <Ionicons
                       name={isIncome ? "trending-up" : "receipt-outline"}
@@ -201,16 +207,17 @@ export default function HomeScreen() {
                   </View>
                   <View style={s.actInfo}>
                     <Text style={s.actName} numberOfLines={1}>
-                      {isIncome ? item.description || "Income" : item.merchant || item.category}
+                      {item.description || (isIncome ? "Income" : "Expense")}
                     </Text>
-                    <Text style={s.actDate}>
-                      {new Date(item.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                    </Text>
+                    <Text style={s.actDate}>{displayDate}</Text>
                   </View>
-                  <Text style={[s.actAmt, { color: isIncome ? C.green : C.red }]}>
-                    {isIncome ? "+" : "-"}${Number(item.amount).toFixed(2)}
-                  </Text>
-                </View>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Text style={[s.actAmt, { color: isIncome ? C.green : C.red }]}>
+                      {isIncome ? "+" : "-"}${Math.abs(Number(item.amount)).toFixed(2)}
+                    </Text>
+                    <Ionicons name="chevron-forward" size={14} color={C.textMuted} />
+                  </View>
+                </TouchableOpacity>
               );
             })
           )}

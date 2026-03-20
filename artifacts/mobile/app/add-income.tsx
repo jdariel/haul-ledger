@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   TouchableOpacity,
@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 
 import { Ionicons } from "@expo/vector-icons";
 import { KeyboardAwareScrollViewCompat as KeyboardAwareScrollView } from "@/components/KeyboardAwareScrollViewCompat";
@@ -18,7 +18,7 @@ import { KeyboardAwareScrollViewCompat as KeyboardAwareScrollView } from "@/comp
 import { Colors } from "@/constants/colors";
 import { FormInput } from "@/components/FormInput";
 import { SelectField } from "@/components/SelectField";
-import { useCreateIncome, useSavedRoutes } from "@/hooks/useApi";
+import { useCreateIncome, useUpdateIncome, useIncomeEntry, useSavedRoutes } from "@/hooks/useApi";
 import { useColorScheme } from "@/hooks/useColorScheme";
 
 export default function AddIncomeScreen() {
@@ -26,7 +26,13 @@ export default function AddIncomeScreen() {
   const C = Colors[colorScheme === "dark" ? "dark" : "light"];
   const insets = useSafeAreaInsets();
   const createIncome = useCreateIncome();
+  const updateIncome = useUpdateIncome();
   const { data: savedRoutes } = useSavedRoutes();
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  const editId = id ? parseInt(id) : null;
+  const isEditing = editId != null;
+
+  const { data: existing, isLoading: loadingExisting } = useIncomeEntry(editId);
 
   const today = new Date().toISOString().split("T")[0];
   const [date, setDate] = useState(today);
@@ -36,9 +42,23 @@ export default function AddIncomeScreen() {
   const [routeName, setRouteName] = useState("");
   const [notes, setNotes] = useState("");
   const [selectedRoute, setSelectedRoute] = useState("");
+  const [prefilled, setPrefilled] = useState(false);
 
   const topPad = Platform.OS === "web" ? 24 : insets.top;
   const bottomPad = Platform.OS === "web" ? 24 : insets.bottom;
+  const isSaving = createIncome.isPending || updateIncome.isPending;
+
+  useEffect(() => {
+    if (existing && !prefilled) {
+      setDate(existing.date ?? today);
+      setSource(existing.source ?? "");
+      setAmount(existing.amount != null ? String(existing.amount) : "");
+      setTrailerNumber(existing.trailerNumber ?? "");
+      setRouteName(existing.routeName ?? "");
+      setNotes(existing.notes ?? "");
+      setPrefilled(true);
+    }
+  }, [existing]);
 
   const routeOptions = [
     { label: "Pick a saved route…", value: "" },
@@ -59,27 +79,41 @@ export default function AddIncomeScreen() {
     if (!source.trim()) return Alert.alert("Error", "Source / Broker is required");
     if (!amount || isNaN(parseFloat(amount))) return Alert.alert("Error", "Valid amount is required");
 
+    const payload = {
+      date,
+      source: source.trim(),
+      amount: parseFloat(amount),
+      trailerNumber: trailerNumber.trim() || null,
+      routeName: routeName.trim() || null,
+      notes: notes.trim() || null,
+    };
+
     try {
-      await createIncome.mutateAsync({
-        date,
-        source: source.trim(),
-        amount: parseFloat(amount),
-        trailerNumber: trailerNumber.trim() || null,
-        routeName: routeName.trim() || null,
-        notes: notes.trim() || null,
-      });
+      if (isEditing) {
+        await updateIncome.mutateAsync({ id: editId!, data: payload });
+      } else {
+        await createIncome.mutateAsync(payload);
+      }
       router.back();
     } catch {
-      Alert.alert("Error", "Failed to save income");
+      Alert.alert("Error", `Failed to ${isEditing ? "update" : "save"} income`);
     }
   };
+
+  if (isEditing && loadingExisting) {
+    return (
+      <View style={[s.root, { backgroundColor: C.background, paddingTop: topPad, justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color={C.green} />
+      </View>
+    );
+  }
 
   return (
     <View style={[s.root, { backgroundColor: C.background, paddingTop: topPad }]}>
       {/* Header */}
       <View style={s.header}>
         <View style={{ width: 32 }} />
-        <Text style={[s.title, { color: C.green }]}>Log Income</Text>
+        <Text style={[s.title, { color: C.green }]}>{isEditing ? "Edit Income" : "Log Income"}</Text>
         <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
           <Ionicons name="close" size={24} color={C.textSecondary} />
         </TouchableOpacity>
@@ -90,17 +124,19 @@ export default function AddIncomeScreen() {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[s.content, { paddingBottom: bottomPad + 80 }]}
       >
-        {/* Quick Fill from Saved Route */}
-        <View style={[s.quickFillBox, { backgroundColor: C.card, borderColor: C.cardBorder }]}>
-          <Text style={[s.quickFillLabel, { color: C.textSecondary }]}>Quick Fill from Saved Route</Text>
-          <SelectField
-            label=""
-            value={selectedRoute}
-            options={routeOptions}
-            placeholder="Pick a saved route…"
-            onChange={handleRouteSelect}
-          />
-        </View>
+        {/* Quick Fill from Saved Route — only on new entry */}
+        {!isEditing && (
+          <View style={[s.quickFillBox, { backgroundColor: C.card, borderColor: C.cardBorder }]}>
+            <Text style={[s.quickFillLabel, { color: C.textSecondary }]}>Quick Fill from Saved Route</Text>
+            <SelectField
+              label=""
+              value={selectedRoute}
+              options={routeOptions}
+              placeholder="Pick a saved route…"
+              onChange={handleRouteSelect}
+            />
+          </View>
+        )}
 
         {/* Source */}
         <FormInput
@@ -108,7 +144,7 @@ export default function AddIncomeScreen() {
           value={source}
           onChangeText={setSource}
           placeholder="TQL Load #12345"
-          autoFocus
+          autoFocus={!isEditing}
         />
 
         {/* Amount + Date row */}
@@ -127,7 +163,7 @@ export default function AddIncomeScreen() {
               label="Date"
               value={date}
               onChangeText={setDate}
-              placeholder="MM/DD/YYYY"
+              placeholder="YYYY-MM-DD"
               keyboardType="numbers-and-punctuation"
             />
           </View>
@@ -172,14 +208,14 @@ export default function AddIncomeScreen() {
       {/* Save Button */}
       <View style={[s.footer, { paddingBottom: bottomPad + 12, borderTopColor: C.separator, backgroundColor: C.background }]}>
         <TouchableOpacity
-          style={[s.saveBtn, { backgroundColor: C.green, opacity: createIncome.isPending ? 0.7 : 1 }]}
+          style={[s.saveBtn, { backgroundColor: C.green, opacity: isSaving ? 0.7 : 1 }]}
           onPress={handleSave}
-          disabled={createIncome.isPending}
+          disabled={isSaving}
           activeOpacity={0.85}
         >
-          {createIncome.isPending
+          {isSaving
             ? <ActivityIndicator color="#fff" size="small" />
-            : <Text style={s.saveBtnText}>Save Income</Text>
+            : <Text style={s.saveBtnText}>{isEditing ? "Update Income" : "Save Income"}</Text>
           }
         </TouchableOpacity>
       </View>

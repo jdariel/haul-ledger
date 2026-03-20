@@ -43,10 +43,10 @@ async function apiFetch(path: string, options?: RequestInit) {
   return response.json();
 }
 
-export function useSummary() {
+export function useSummary(period?: "week" | "month") {
   return useQuery({
-    queryKey: ["summary"],
-    queryFn: () => apiFetch("/summary"),
+    queryKey: ["summary", period],
+    queryFn: () => apiFetch(`/summary${period ? `?period=${period}` : ""}`),
   });
 }
 
@@ -83,6 +83,18 @@ export function useExpense(id: number | null) {
   });
 }
 
+export function useUpdateExpense() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: any }) =>
+      apiFetch(`/expenses/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["expenses"] });
+      qc.invalidateQueries({ queryKey: ["summary"] });
+    },
+  });
+}
+
 export function useDeleteExpense() {
   const qc = useQueryClient();
   return useMutation({
@@ -108,6 +120,26 @@ export function useCreateIncome() {
   return useMutation({
     mutationFn: (data: any) =>
       apiFetch("/income", { method: "POST", body: JSON.stringify(data) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["income"] });
+      qc.invalidateQueries({ queryKey: ["summary"] });
+    },
+  });
+}
+
+export function useIncomeEntry(id: number | null) {
+  return useQuery({
+    queryKey: ["income-entry", id],
+    queryFn: () => apiFetch(`/income/${id}`),
+    enabled: id != null,
+  });
+}
+
+export function useUpdateIncome() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: any }) =>
+      apiFetch(`/income/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["income"] });
       qc.invalidateQueries({ queryKey: ["summary"] });

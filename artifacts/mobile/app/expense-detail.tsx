@@ -122,9 +122,14 @@ export default function ExpenseDetailScreen() {
           <Ionicons name="chevron-back" size={22} color={C.primary} />
           <Text style={[s.backText, { color: C.primary }]}>Expenses</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={handleDelete} style={s.deleteBtn}>
-          <Ionicons name="trash-outline" size={20} color={C.red} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <TouchableOpacity onPress={() => router.push(`/add-expense?id=${id}`)} style={s.deleteBtn}>
+            <Ionicons name="pencil-outline" size={20} color={C.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleDelete} style={s.deleteBtn}>
+            <Ionicons name="trash-outline" size={20} color={C.red} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>

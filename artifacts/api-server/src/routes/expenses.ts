@@ -93,6 +93,33 @@ router.get("/:id", async (req, res) => {
   }
 });
 
+router.put("/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const body = req.body;
+    const [updated] = await db
+      .update(expensesTable)
+      .set({
+        date: body.date,
+        merchant: body.merchant,
+        category: body.category,
+        amount: body.amount,
+        notes: body.notes ?? null,
+        gallons: body.gallons ?? null,
+        pricePerGallon: body.pricePerGallon ?? null,
+        jurisdiction: body.jurisdiction ?? null,
+        receiptUrl: body.receiptUrl ?? null,
+        paymentMethod: body.paymentMethod ?? null,
+      })
+      .where(eq(expensesTable.id, id))
+      .returning();
+    if (!updated) return res.status(404).json({ error: "Not found" });
+    res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update expense" });
+  }
+});
+
 router.delete("/:id", async (req, res) => {
   try {
     await db.delete(expensesTable).where(eq(expensesTable.id, parseInt(req.params.id)));

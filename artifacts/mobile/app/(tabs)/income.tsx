@@ -197,24 +197,29 @@ export default function IncomeScreen() {
         ) : (
           <View style={s.list}>
             {filtered.map((item: any) => (
-              <View key={item.id} style={[s.incomeCard, { backgroundColor: C.card, borderColor: C.separator }]}>
+              <TouchableOpacity
+                key={item.id}
+                style={[s.incomeCard, { backgroundColor: C.card, borderColor: C.separator }]}
+                onPress={() => router.push(`/income-detail?id=${item.id}`)}
+                activeOpacity={0.75}
+              >
                 <View style={[s.iconBubble, { backgroundColor: C.greenLight }]}>
                   <Ionicons name="trending-up" size={18} color={C.green} />
                 </View>
                 <View style={s.info}>
-                  <Text style={[s.desc, { color: C.text }]}>{item.description || "Load Income"}</Text>
+                  <Text style={[s.desc, { color: C.text }]}>{item.source || item.description || "Load Income"}</Text>
                   <Text style={[s.meta, { color: C.textSecondary }]}>
-                    {item.loadNumber ? `Load #${item.loadNumber} · ` : ""}
-                    {new Date(item.date || item.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    {item.routeName ? `${item.routeName} · ` : ""}
+                    {new Date((item.date || item.createdAt) + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                   </Text>
                 </View>
                 <View style={s.right}>
                   <Text style={[s.amt, { color: C.green }]}>+${Number(item.amount).toFixed(2)}</Text>
-                  <TouchableOpacity onPress={() => setDeleteId(item.id)} style={s.deleteBtn}>
+                  <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); setDeleteId(item.id); }} style={s.deleteBtn}>
                     <Ionicons name="trash-outline" size={15} color={C.textMuted} />
                   </TouchableOpacity>
                 </View>
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
         )}

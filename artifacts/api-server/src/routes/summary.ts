@@ -1,24 +1,33 @@
 import { Router } from "express";
 import { db, expensesTable, incomeTable, tripsTable } from "@workspace/db";
-import { desc, sum } from "drizzle-orm";
+import { desc, sum, gte } from "drizzle-orm";
 
 const router = Router();
 
-router.get("/", async (_req, res) => {
+router.get("/", async (req, res) => {
   try {
     const now = new Date();
+    const period = (req.query.period as string) ?? "week";
+
     const startOfWeek = new Date(now);
     startOfWeek.setDate(now.getDate() - now.getDay());
     startOfWeek.setHours(0, 0, 0, 0);
+
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const periodStart = period === "month" ? startOfMonth : startOfWeek;
+    const periodStr = periodStart.toISOString().split("T")[0];
     const weekStr = startOfWeek.toISOString().split("T")[0];
 
     const [incomeResult] = await db
       .select({ total: sum(incomeTable.amount) })
-      .from(incomeTable);
+      .from(incomeTable)
+      .where(gte(incomeTable.date, periodStr));
 
     const [expenseResult] = await db
       .select({ total: sum(expensesTable.amount) })
-      .from(expensesTable);
+      .from(expensesTable)
+      .where(gte(expensesTable.date, periodStr));
 
     const totalIncome = Number(incomeResult?.total ?? 0);
     const totalExpenses = Number(expenseResult?.total ?? 0);
@@ -32,13 +41,13 @@ router.get("/", async (_req, res) => {
     const recentExpenses = await db
       .select()
       .from(expensesTable)
-      .orderBy(desc(expensesTable.createdAt))
+      .orderBy(desc(expensesTable.date))
       .limit(3);
 
     const recentIncome = await db
       .select()
       .from(incomeTable)
-      .orderBy(desc(incomeTable.createdAt))
+      .orderBy(desc(incomeTable.date))
       .limit(3);
 
     const activity = [

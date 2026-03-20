@@ -39,6 +39,42 @@ router.post("/", async (req, res) => {
   }
 });
 
+router.get("/:id", async (req, res) => {
+  try {
+    const [entry] = await db
+      .select()
+      .from(incomeTable)
+      .where(eq(incomeTable.id, parseInt(req.params.id)));
+    if (!entry) return res.status(404).json({ error: "Not found" });
+    res.json({ ...entry, createdAt: entry.createdAt.toISOString() });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch income" });
+  }
+});
+
+router.put("/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const body = req.body;
+    const [updated] = await db
+      .update(incomeTable)
+      .set({
+        date: body.date,
+        source: body.source,
+        amount: body.amount,
+        trailerNumber: body.trailerNumber ?? null,
+        routeName: body.routeName ?? null,
+        notes: body.notes ?? null,
+      })
+      .where(eq(incomeTable.id, id))
+      .returning();
+    if (!updated) return res.status(404).json({ error: "Not found" });
+    res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update income" });
+  }
+});
+
 router.delete("/:id", async (req, res) => {
   try {
     await db.delete(incomeTable).where(eq(incomeTable.id, parseInt(req.params.id)));

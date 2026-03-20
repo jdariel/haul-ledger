@@ -22,7 +22,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import { Colors } from "@/constants/colors";
 import { FormInput } from "@/components/FormInput";
 import { SelectField } from "@/components/SelectField";
-import { useCreateExpense } from "@/hooks/useApi";
+import { useCreateExpense, useUpdateExpense, useExpense } from "@/hooks/useApi";
 import { API_BASE_URL } from "@/constants/api";
 import { useColorScheme } from "@/hooks/useColorScheme";
 
@@ -78,7 +78,12 @@ export default function AddExpenseScreen() {
   const C = Colors[colorScheme === "dark" ? "dark" : "light"];
   const insets = useSafeAreaInsets();
   const createExpense = useCreateExpense();
-  const { scan } = useLocalSearchParams<{ scan?: string }>();
+  const updateExpense = useUpdateExpense();
+  const { scan, id } = useLocalSearchParams<{ scan?: string; id?: string }>();
+  const editId = id ? parseInt(id) : null;
+  const isEditing = editId != null;
+
+  const { data: existing, isLoading: loadingExisting } = useExpense(editId);
 
   const today = new Date().toISOString().split("T")[0];
   const [date, setDate] = useState(today);
@@ -94,11 +99,29 @@ export default function AddExpenseScreen() {
   const [scanStatus, setScanStatus] = useState<ScanStatus>("idle");
   const [receiptUri, setReceiptUri] = useState<string | null>(null);
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
+  const [prefilled, setPrefilled] = useState(false);
+
+  useEffect(() => {
+    if (existing && !prefilled) {
+      setDate(existing.date ?? today);
+      setMerchant(existing.merchant ?? "");
+      setCategory(existing.category ?? "Fuel");
+      setPayment(existing.paymentMethod ?? "");
+      setAmount(existing.amount != null ? String(existing.amount) : "");
+      setNotes(existing.notes ?? "");
+      setGallons(existing.gallons != null ? String(existing.gallons) : "");
+      setPricePerGallon(existing.pricePerGallon != null ? String(existing.pricePerGallon) : "");
+      setJurisdiction(existing.jurisdiction ?? "");
+      setReceiptUrl(existing.receiptUrl ?? null);
+      setPrefilled(true);
+    }
+  }, [existing]);
 
   const isFuel = category === "Fuel";
   const topPad = Platform.OS === "web" ? 24 : insets.top;
   const bottomPad = Platform.OS === "web" ? 24 : insets.bottom;
   const isScanning = scanStatus === "uploading" || scanStatus === "analyzing";
+  const isSaving = createExpense.isPending || updateExpense.isPending;
 
   useEffect(() => {
     if (scan === "1") launchPicker(false);
@@ -159,30 +182,44 @@ export default function AddExpenseScreen() {
   const handleSave = async () => {
     if (!merchant.trim()) return Alert.alert("Error", "Merchant is required");
     if (!amount || isNaN(parseFloat(amount))) return Alert.alert("Error", "Valid amount is required");
+    const payload = {
+      date,
+      merchant: merchant.trim(),
+      category,
+      paymentMethod: payment || null,
+      amount: parseFloat(amount),
+      notes: notes.trim() || null,
+      gallons: gallons ? parseFloat(gallons) : null,
+      pricePerGallon: pricePerGallon ? parseFloat(pricePerGallon) : null,
+      jurisdiction: jurisdiction || null,
+      receiptUrl: receiptUrl ?? null,
+    };
     try {
-      await createExpense.mutateAsync({
-        date,
-        merchant: merchant.trim(),
-        category,
-        amount: parseFloat(amount),
-        notes: notes.trim() || null,
-        gallons: gallons ? parseFloat(gallons) : null,
-        pricePerGallon: pricePerGallon ? parseFloat(pricePerGallon) : null,
-        jurisdiction: jurisdiction || null,
-        receiptUrl: receiptUrl ?? undefined,
-      } as Parameters<typeof createExpense.mutateAsync>[0]);
+      if (isEditing) {
+        await updateExpense.mutateAsync({ id: editId!, data: payload });
+      } else {
+        await createExpense.mutateAsync(payload as any);
+      }
       router.back();
     } catch {
-      Alert.alert("Error", "Failed to save expense");
+      Alert.alert("Error", `Failed to ${isEditing ? "update" : "save"} expense`);
     }
   };
+
+  if (isEditing && loadingExisting) {
+    return (
+      <View style={[s.root, { backgroundColor: C.background, paddingTop: topPad, justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color={C.primary} />
+      </View>
+    );
+  }
 
   return (
     <View style={[s.root, { backgroundColor: C.background, paddingTop: topPad }]}>
       {/* Header */}
       <View style={s.header}>
         <View style={{ width: 32 }} />
-        <Text style={[s.title, { color: C.text }]}>Log Expense</Text>
+        <Text style={[s.title, { color: C.text }]}>{isEditing ? "Edit Expense" : "Log Expense"}</Text>
         <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
           <Ionicons name="close" size={24} color={C.textSecondary} />
         </TouchableOpacity>
@@ -193,8 +230,8 @@ export default function AddExpenseScreen() {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[s.content, { paddingBottom: bottomPad + 80 }]}
       >
-        {/* Scan Receipt button / status */}
-        {scanStatus === "idle" || scanStatus === "picking" || scanStatus === "error" ? (
+        {/* Scan Receipt button / status — only show when adding */}
+        {!isEditing && (scanStatus === "idle" || scanStatus === "picking" || scanStatus === "error") ? (
           <View style={s.scanActions}>
             <TouchableOpacity
               style={[s.scanBtn, { backgroundColor: C.primaryLight }]}
@@ -215,14 +252,14 @@ export default function AddExpenseScreen() {
               <Text style={[s.scanBtnText, { color: C.primary }]}>Scan Receipt</Text>
             </TouchableOpacity>
           </View>
-        ) : isScanning ? (
+        ) : !isEditing && isScanning ? (
           <View style={[s.scanningBox, { backgroundColor: C.primaryLight }]}>
             <ActivityIndicator size="small" color={C.primary} />
             <Text style={[s.scanningText, { color: C.primary }]}>
               {scanStatus === "uploading" ? "Uploading receipt…" : "AI is reading your receipt…"}
             </Text>
           </View>
-        ) : scanStatus === "done" ? (
+        ) : !isEditing && scanStatus === "done" ? (
           <View style={[s.receiptPreview, { backgroundColor: C.card, borderColor: C.cardBorder }]}>
             <View style={s.receiptPreviewLeft}>
               {receiptUri ? (
@@ -248,7 +285,7 @@ export default function AddExpenseScreen() {
           value={merchant}
           onChangeText={setMerchant}
           placeholder="Pilot Flying J"
-          autoFocus={!scan}
+          autoFocus={!scan && !isEditing}
         />
 
         {/* Amount + Date row */}
@@ -321,14 +358,14 @@ export default function AddExpenseScreen() {
       {/* Save Button */}
       <View style={[s.footer, { paddingBottom: bottomPad + 12, borderTopColor: C.separator, backgroundColor: C.background }]}>
         <TouchableOpacity
-          style={[s.saveBtn, { backgroundColor: C.primary, opacity: createExpense.isPending ? 0.7 : 1 }]}
+          style={[s.saveBtn, { backgroundColor: C.primary, opacity: isSaving ? 0.7 : 1 }]}
           onPress={handleSave}
-          disabled={createExpense.isPending}
+          disabled={isSaving}
           activeOpacity={0.85}
         >
-          {createExpense.isPending
+          {isSaving
             ? <ActivityIndicator color="#fff" size="small" />
-            : <Text style={s.saveBtnText}>Save Expense</Text>}
+            : <Text style={s.saveBtnText}>{isEditing ? "Update Expense" : "Save Expense"}</Text>}
         </TouchableOpacity>
       </View>
     </View>
