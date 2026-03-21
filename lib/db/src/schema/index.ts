@@ -55,6 +55,8 @@ export type FuelEntry = typeof fuelEntriesTable.$inferSelect;
 export const tripsTable = pgTable("trips", {
   id: serial("id").primaryKey(),
   date: text("date").notNull(),
+  pickupLocation: text("pickup_location"),
+  deliveryLocation: text("delivery_location"),
   startOdometer: real("start_odometer").notNull(),
   endOdometer: real("end_odometer").notNull(),
   loadedMiles: real("loaded_miles").notNull(),

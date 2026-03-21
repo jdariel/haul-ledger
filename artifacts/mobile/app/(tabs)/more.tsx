@@ -111,7 +111,7 @@ export default function MoreScreen() {
         <View style={[s.card, { backgroundColor: C.card, borderColor: C.separator, padding: 0 }]}>
           <Row icon="map-outline" iconBg={C.primaryLight} iconColor={C.primary}
             label="Trips" subtitle="Log trips and track mileage"
-            onPress={() => router.push("/add-trip")} C={C} />
+            onPress={() => router.push("/trips")} C={C} />
           <Row icon="flame-outline" iconBg={C.orangeLight} iconColor={C.orange}
             label="Fuel Log" subtitle="Track fuel purchases for IFTA"
             onPress={() => router.push("/fuel-log")} C={C} />

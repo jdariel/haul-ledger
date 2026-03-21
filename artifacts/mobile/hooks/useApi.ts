@@ -207,6 +207,26 @@ export function useCreateTrip() {
   });
 }
 
+export function useTrip(id: number | null) {
+  return useQuery({
+    queryKey: ["trip", id],
+    queryFn: () => apiFetch(`/trips/${id}`),
+    enabled: id != null,
+  });
+}
+
+export function useUpdateTrip() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: any }) =>
+      apiFetch(`/trips/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["trips"] });
+      qc.invalidateQueries({ queryKey: ["summary"] });
+    },
+  });
+}
+
 export function useDeleteTrip() {
   const qc = useQueryClient();
   return useMutation({
