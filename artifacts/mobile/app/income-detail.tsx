@@ -109,6 +109,45 @@ export default function IncomeDetailScreen() {
           </View>
         </View>
 
+        {/* Route & Miles Card */}
+        {(entry.pickupLocation || entry.deliveryLocation || entry.loadedMiles != null) && (
+          <View style={[s.card, { backgroundColor: C.card, borderColor: C.separator }]}>
+            <Text style={[s.sectionTitle, { color: C.text }]}>Route & Miles</Text>
+            <View style={[s.divider, { backgroundColor: C.separator }]} />
+            {entry.pickupLocation && entry.deliveryLocation && (
+              <View style={s.routeRow}>
+                <View style={s.routeStop}>
+                  <View style={[s.routeDot, { backgroundColor: C.green }]} />
+                  <Text style={[s.routeCity, { color: C.text }]}>{entry.pickupLocation}</Text>
+                </View>
+                <View style={[s.routeLine, { backgroundColor: C.separator }]} />
+                <View style={s.routeStop}>
+                  <View style={[s.routeDot, { backgroundColor: C.red }]} />
+                  <Text style={[s.routeCity, { color: C.text }]}>{entry.deliveryLocation}</Text>
+                </View>
+              </View>
+            )}
+            {entry.loadedMiles != null && (
+              <View style={s.milesRow}>
+                <View style={s.milesStat}>
+                  <Text style={[s.milesNum, { color: C.teal }]}>{entry.loadedMiles}</Text>
+                  <Text style={[s.milesLabel, { color: C.textSecondary }]}>Loaded mi</Text>
+                </View>
+                <View style={[s.milesDivider, { backgroundColor: C.separator }]} />
+                <View style={s.milesStat}>
+                  <Text style={[s.milesNum, { color: C.teal }]}>{entry.emptyMiles ?? 0}</Text>
+                  <Text style={[s.milesLabel, { color: C.textSecondary }]}>Empty mi</Text>
+                </View>
+                <View style={[s.milesDivider, { backgroundColor: C.separator }]} />
+                <View style={s.milesStat}>
+                  <Text style={[s.milesNum, { color: C.teal }]}>{(entry.loadedMiles ?? 0) + (entry.emptyMiles ?? 0)}</Text>
+                  <Text style={[s.milesLabel, { color: C.textSecondary }]}>Total mi</Text>
+                </View>
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Details Card */}
         <View style={[s.card, { backgroundColor: C.card, borderColor: C.separator }]}>
           <Text style={[s.sectionTitle, { color: C.text }]}>Details</Text>
@@ -121,12 +160,6 @@ export default function IncomeDetailScreen() {
               <>
                 <View style={[s.rowDivider, { backgroundColor: C.separator }]} />
                 <Row label="Trailer #" value={entry.trailerNumber} C={C} />
-              </>
-            ) : null}
-            {entry.routeName ? (
-              <>
-                <View style={[s.rowDivider, { backgroundColor: C.separator }]} />
-                <Row label="Route" value={entry.routeName} C={C} />
               </>
             ) : null}
             {entry.notes ? (
@@ -206,5 +239,20 @@ function makeStyles(C: typeof Colors.light) {
     sectionTitle: { fontSize: 15, fontWeight: "700" },
     divider: { height: 1, marginHorizontal: -16 },
     rowDivider: { height: 1 },
+    routeRow: { paddingVertical: 12, gap: 6 },
+    routeStop: { flexDirection: "row", alignItems: "center", gap: 10 },
+    routeDot: { width: 10, height: 10, borderRadius: 5 },
+    routeLine: { width: 2, height: 20, marginLeft: 4 },
+    routeCity: { fontSize: 14, fontWeight: "600" },
+    milesRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-around",
+      paddingVertical: 12,
+    },
+    milesStat: { alignItems: "center", flex: 1 },
+    milesNum: { fontSize: 22, fontWeight: "700" },
+    milesLabel: { fontSize: 11, fontWeight: "500", marginTop: 2 },
+    milesDivider: { width: 1, height: 36 },
   });
 }

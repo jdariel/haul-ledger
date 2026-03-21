@@ -1,8 +1,13 @@
 import { Router } from "express";
-import { db, incomeTable } from "@workspace/db";
+import { db, incomeTable, tripsTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 
 const router = Router();
+
+function extractState(location: string): string | null {
+  const match = location.trim().match(/,\s*([A-Z]{2})$/);
+  return match ? match[1] : null;
+}
 
 router.get("/", async (req, res) => {
   try {
@@ -32,9 +37,33 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    const [entry] = await db.insert(incomeTable).values(req.body).returning();
+    const body = req.body;
+    const [entry] = await db.insert(incomeTable).values(body).returning();
+
+    if (
+      entry.pickupLocation &&
+      entry.deliveryLocation &&
+      entry.loadedMiles != null &&
+      entry.loadedMiles > 0
+    ) {
+      const jurisdiction = extractState(entry.deliveryLocation) ?? extractState(entry.pickupLocation) ?? null;
+      const totalMiles = (entry.loadedMiles ?? 0) + (entry.emptyMiles ?? 0);
+      await db.insert(tripsTable).values({
+        date: entry.date,
+        pickupLocation: entry.pickupLocation,
+        deliveryLocation: entry.deliveryLocation,
+        loadedMiles: entry.loadedMiles,
+        emptyMiles: entry.emptyMiles ?? 0,
+        startOdometer: 0,
+        endOdometer: Math.round(totalMiles),
+        jurisdiction: jurisdiction ?? "N/A",
+        notes: `Auto-logged from income: ${entry.source}`,
+      });
+    }
+
     res.status(201).json({ ...entry, createdAt: entry.createdAt.toISOString() });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Failed to create income" });
   }
 });
@@ -62,6 +91,10 @@ router.put("/:id", async (req, res) => {
         date: body.date,
         source: body.source,
         amount: body.amount,
+        pickupLocation: body.pickupLocation ?? null,
+        deliveryLocation: body.deliveryLocation ?? null,
+        loadedMiles: body.loadedMiles ?? null,
+        emptyMiles: body.emptyMiles ?? null,
         trailerNumber: body.trailerNumber ?? null,
         routeName: body.routeName ?? null,
         notes: body.notes ?? null,
