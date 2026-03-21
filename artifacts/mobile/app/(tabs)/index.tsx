@@ -40,12 +40,13 @@ export default function HomeScreen() {
     Animated.spring(fabAnim, { toValue: 0, useNativeDriver: true, friction: 6, tension: 80 }).start();
   };
 
-  const handleAction = (action: "expense" | "income" | "scan") => {
+  const handleAction = (action: "expense" | "income" | "scan" | "trip") => {
     closeFab();
     setTimeout(() => {
       if (action === "expense") router.push("/add-expense");
       else if (action === "income") router.push("/add-income");
       else if (action === "scan") router.push("/add-expense?scan=1");
+      else if (action === "trip") router.push("/add-trip");
     }, 150);
   };
 
@@ -148,7 +149,7 @@ export default function HomeScreen() {
             <Text style={[s.statValue, { color: C.red }]}>${totalExpenses.toFixed(2)}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={s.statCard}>
+          <TouchableOpacity style={s.statCard} onPress={() => router.push("/trips")}>
             <View style={[s.iconBubble, { backgroundColor: C.tealLight }]}>
               <Ionicons name="navigate-outline" size={17} color={C.teal} />
             </View>
@@ -161,14 +162,6 @@ export default function HomeScreen() {
               <Ionicons name="flame-outline" size={17} color={C.orange} />
             </View>
             <Text style={s.statLabel}>FUEL COST/MILE</Text>
-            <Text style={[s.statValue, { color: C.text }]}>—</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={[s.statCard, s.statCardFull]}>
-            <View style={[s.iconBubble, { backgroundColor: C.tealLight }]}>
-              <Ionicons name="navigate-outline" size={17} color={C.teal} />
-            </View>
-            <Text style={s.statLabel}>MILES THIS WEEK</Text>
             <Text style={[s.statValue, { color: C.text }]}>—</Text>
           </TouchableOpacity>
         </View>
@@ -253,6 +246,15 @@ export default function HomeScreen() {
           <SpeedDialItem
             anim={fabAnim}
             delay={80}
+            label="Log Trip"
+            icon="navigate-outline"
+            iconColor="#fff"
+            bgColor={C.teal}
+            onPress={() => handleAction("trip")}
+          />
+          <SpeedDialItem
+            anim={fabAnim}
+            delay={120}
             label="Scan Receipt"
             icon="scan-outline"
             iconColor="#fff"
