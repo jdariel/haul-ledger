@@ -2,8 +2,21 @@ import { pgTable, serial, text, real, integer, timestamp, boolean } from "drizzl
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
+export const usersTable = pgTable("users", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertUserSchema = createInsertSchema(usersTable).omit({ id: true, createdAt: true });
+export type InsertUser = z.infer<typeof insertUserSchema>;
+export type User = typeof usersTable.$inferSelect;
+
 export const expensesTable = pgTable("expenses", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => usersTable.id),
   date: text("date").notNull(),
   merchant: text("merchant").notNull(),
   category: text("category").notNull(),
@@ -23,6 +36,7 @@ export type Expense = typeof expensesTable.$inferSelect;
 
 export const incomeTable = pgTable("income", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => usersTable.id),
   date: text("date").notNull(),
   source: text("source").notNull(),
   amount: real("amount").notNull(),
@@ -42,6 +56,7 @@ export type Income = typeof incomeTable.$inferSelect;
 
 export const fuelEntriesTable = pgTable("fuel_entries", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => usersTable.id),
   date: text("date").notNull(),
   vendor: text("vendor").notNull(),
   gallons: real("gallons").notNull(),
@@ -58,6 +73,7 @@ export type FuelEntry = typeof fuelEntriesTable.$inferSelect;
 
 export const tripsTable = pgTable("trips", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => usersTable.id),
   date: text("date").notNull(),
   pickupLocation: text("pickup_location"),
   deliveryLocation: text("delivery_location"),
@@ -77,6 +93,7 @@ export type Trip = typeof tripsTable.$inferSelect;
 
 export const assetsTable = pgTable("assets", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => usersTable.id),
   type: text("type").notNull(),
   vin: text("vin").notNull(),
   plate: text("plate").notNull(),
@@ -92,6 +109,7 @@ export type Asset = typeof assetsTable.$inferSelect;
 
 export const savedRoutesTable = pgTable("saved_routes", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => usersTable.id),
   name: text("name").notNull(),
   origin: text("origin").notNull(),
   destination: text("destination").notNull(),
@@ -103,20 +121,9 @@ export const insertSavedRouteSchema = createInsertSchema(savedRoutesTable).omit(
 export type InsertSavedRoute = z.infer<typeof insertSavedRouteSchema>;
 export type SavedRoute = typeof savedRoutesTable.$inferSelect;
 
-export const usersTable = pgTable("users", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  email: text("email").notNull().unique(),
-  passwordHash: text("password_hash").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-export const insertUserSchema = createInsertSchema(usersTable).omit({ id: true, createdAt: true });
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof usersTable.$inferSelect;
-
 export const quickExpensesTable = pgTable("quick_expenses", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => usersTable.id),
   label: text("label").notNull(),
   category: text("category").notNull(),
   defaultAmount: real("default_amount").notNull(),

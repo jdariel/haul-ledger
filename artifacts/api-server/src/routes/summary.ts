@@ -1,11 +1,13 @@
 import { Router } from "express";
 import { db, expensesTable, incomeTable, tripsTable } from "@workspace/db";
-import { desc, sum, gte } from "drizzle-orm";
+import { desc, sum, gte, and, eq } from "drizzle-orm";
+import { requireAuth } from "../middleware/auth";
 
 const router = Router();
 
-router.get("/", async (req, res) => {
+router.get("/", requireAuth, async (req, res) => {
   try {
+    const uid = req.user!.id;
     const now = new Date();
     const period = (req.query.period as string) ?? "week";
 
@@ -22,31 +24,38 @@ router.get("/", async (req, res) => {
     const [incomeResult] = await db
       .select({ total: sum(incomeTable.amount) })
       .from(incomeTable)
-      .where(gte(incomeTable.date, periodStr));
+      .where(and(eq(incomeTable.userId, uid), gte(incomeTable.date, periodStr)));
 
     const [expenseResult] = await db
       .select({ total: sum(expensesTable.amount) })
       .from(expensesTable)
-      .where(gte(expensesTable.date, periodStr));
+      .where(and(eq(expensesTable.userId, uid), gte(expensesTable.date, periodStr)));
 
     const totalIncome = Number(incomeResult?.total ?? 0);
     const totalExpenses = Number(expenseResult?.total ?? 0);
     const netProfit = totalIncome - totalExpenses;
 
-    const allTrips = await db.select().from(tripsTable);
-    const weeklyMiles = allTrips
-      .filter((t) => t.date >= weekStr)
-      .reduce((sum, t) => sum + t.loadedMiles + t.emptyMiles, 0);
+    const allTrips = await db
+      .select()
+      .from(tripsTable)
+      .where(and(eq(tripsTable.userId, uid), gte(tripsTable.date, weekStr)));
+
+    const weeklyMiles = allTrips.reduce(
+      (sum, t) => sum + t.loadedMiles + t.emptyMiles,
+      0
+    );
 
     const recentExpenses = await db
       .select()
       .from(expensesTable)
+      .where(eq(expensesTable.userId, uid))
       .orderBy(desc(expensesTable.date))
       .limit(3);
 
     const recentIncome = await db
       .select()
       .from(incomeTable)
+      .where(eq(incomeTable.userId, uid))
       .orderBy(desc(incomeTable.date))
       .limit(3);
 

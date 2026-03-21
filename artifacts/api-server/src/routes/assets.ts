@@ -1,14 +1,17 @@
 import { Router } from "express";
 import { db, assetsTable, tripsTable } from "@workspace/db";
-import { eq, desc, sum } from "drizzle-orm";
+import { eq, desc, and, sum } from "drizzle-orm";
+import { requireAuth } from "../middleware/auth";
 
 const router = Router();
 
-router.get("/", async (_req, res) => {
+router.get("/", requireAuth, async (req, res) => {
   try {
+    const uid = req.user!.id;
     const assets = await db
       .select()
       .from(assetsTable)
+      .where(eq(assetsTable.userId, uid))
       .orderBy(desc(assetsTable.createdAt));
 
     const assetsWithMiles = await Promise.all(
@@ -17,7 +20,7 @@ router.get("/", async (_req, res) => {
           const result = await db
             .select({ total: sum(tripsTable.loadedMiles) })
             .from(tripsTable)
-            .where(eq(tripsTable.truckId, asset.id));
+            .where(and(eq(tripsTable.truckId, asset.id), eq(tripsTable.userId, uid)));
           const totalMiles = Number(result[0]?.total ?? 0);
           return { ...asset, totalMiles, createdAt: asset.createdAt.toISOString() };
         }
@@ -31,18 +34,23 @@ router.get("/", async (_req, res) => {
   }
 });
 
-router.post("/", async (req, res) => {
+router.post("/", requireAuth, async (req, res) => {
   try {
-    const [asset] = await db.insert(assetsTable).values(req.body).returning();
+    const [asset] = await db
+      .insert(assetsTable)
+      .values({ ...req.body, userId: req.user!.id })
+      .returning();
     res.status(201).json({ ...asset, totalMiles: 0, createdAt: asset.createdAt.toISOString() });
   } catch (err) {
     res.status(500).json({ error: "Failed to create asset" });
   }
 });
 
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", requireAuth, async (req, res) => {
   try {
-    await db.delete(assetsTable).where(eq(assetsTable.id, parseInt(req.params.id)));
+    await db.delete(assetsTable).where(
+      and(eq(assetsTable.id, parseInt(req.params.id)), eq(assetsTable.userId, req.user!.id))
+    );
     res.status(204).send();
   } catch (err) {
     res.status(500).json({ error: "Failed to delete asset" });

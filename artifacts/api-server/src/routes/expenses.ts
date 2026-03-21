@@ -1,49 +1,44 @@
 import { Router } from "express";
 import { db, expensesTable, fuelEntriesTable } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
+import { requireAuth } from "../middleware/auth";
 
 const router = Router();
 
-router.get("/", async (req, res) => {
+router.get("/", requireAuth, async (req, res) => {
   try {
-    const expenses = await db
+    const uid = req.user!.id;
+    let expenses = await db
       .select()
       .from(expensesTable)
+      .where(eq(expensesTable.userId, uid))
       .orderBy(desc(expensesTable.createdAt));
 
-    let result = expenses;
-
     if (req.query.category) {
-      result = result.filter((e) => e.category === req.query.category);
+      expenses = expenses.filter((e) => e.category === req.query.category);
     }
-
     if (req.query.week === "true") {
       const now = new Date();
       const startOfWeek = new Date(now);
       startOfWeek.setDate(now.getDate() - now.getDay());
       startOfWeek.setHours(0, 0, 0, 0);
-      result = result.filter((e) => new Date(e.date) >= startOfWeek);
+      expenses = expenses.filter((e) => new Date(e.date) >= startOfWeek);
     }
-
     if (req.query.search) {
       const search = (req.query.search as string).toLowerCase();
-      result = result.filter((e) =>
-        e.merchant.toLowerCase().includes(search)
-      );
+      expenses = expenses.filter((e) => e.merchant.toLowerCase().includes(search));
     }
 
-    res.json(result.map((e) => ({
-      ...e,
-      createdAt: e.createdAt.toISOString(),
-    })));
+    res.json(expenses.map((e) => ({ ...e, createdAt: e.createdAt.toISOString() })));
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch expenses" });
   }
 });
 
-router.post("/", async (req, res) => {
+router.post("/", requireAuth, async (req, res) => {
   try {
-    const body = req.body;
+    const uid = req.user!.id;
+    const body = { ...req.body, userId: uid };
 
     const isFuel =
       body.category === "Fuel" &&
@@ -53,13 +48,10 @@ router.post("/", async (req, res) => {
       parseFloat(body.pricePerGallon) > 0;
 
     const result = await db.transaction(async (tx) => {
-      const [expense] = await tx
-        .insert(expensesTable)
-        .values(body)
-        .returning();
-
+      const [expense] = await tx.insert(expensesTable).values(body).returning();
       if (isFuel) {
         await tx.insert(fuelEntriesTable).values({
+          userId: uid,
           date: body.date,
           vendor: body.merchant,
           gallons: parseFloat(body.gallons),
@@ -69,7 +61,6 @@ router.post("/", async (req, res) => {
           truckId: body.truckId ?? null,
         });
       }
-
       return expense;
     });
 
@@ -80,12 +71,12 @@ router.post("/", async (req, res) => {
   }
 });
 
-router.get("/:id", async (req, res) => {
+router.get("/:id", requireAuth, async (req, res) => {
   try {
     const [expense] = await db
       .select()
       .from(expensesTable)
-      .where(eq(expensesTable.id, parseInt(req.params.id)));
+      .where(and(eq(expensesTable.id, parseInt(req.params.id)), eq(expensesTable.userId, req.user!.id)));
     if (!expense) return res.status(404).json({ error: "Not found" });
     res.json({ ...expense, createdAt: expense.createdAt.toISOString() });
   } catch (err) {
@@ -93,7 +84,7 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-router.put("/:id", async (req, res) => {
+router.put("/:id", requireAuth, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const body = req.body;
@@ -111,7 +102,7 @@ router.put("/:id", async (req, res) => {
         receiptUrl: body.receiptUrl ?? null,
         paymentMethod: body.paymentMethod ?? null,
       })
-      .where(eq(expensesTable.id, id))
+      .where(and(eq(expensesTable.id, id), eq(expensesTable.userId, req.user!.id)))
       .returning();
     if (!updated) return res.status(404).json({ error: "Not found" });
     res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
@@ -120,9 +111,11 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", requireAuth, async (req, res) => {
   try {
-    await db.delete(expensesTable).where(eq(expensesTable.id, parseInt(req.params.id)));
+    await db.delete(expensesTable).where(
+      and(eq(expensesTable.id, parseInt(req.params.id)), eq(expensesTable.userId, req.user!.id))
+    );
     res.status(204).send();
   } catch (err) {
     res.status(500).json({ error: "Failed to delete expense" });

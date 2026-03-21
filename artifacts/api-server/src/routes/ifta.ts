@@ -1,5 +1,7 @@
 import { Router } from "express";
 import { db, fuelEntriesTable, tripsTable, expensesTable } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
+import { requireAuth } from "../middleware/auth";
 
 const router = Router();
 
@@ -79,8 +81,9 @@ function getQuarterBounds(quarter: number, year: number) {
   return { start: starts[quarter - 1], end: ends[quarter - 1] };
 }
 
-router.get("/", async (req, res) => {
+router.get("/", requireAuth, async (req, res) => {
   try {
+    const uid = req.user!.id;
     const quarter = parseInt((req.query.quarter as string) || "1");
     const year = parseInt((req.query.year as string) || String(new Date().getFullYear()));
     const { start, end } = getQuarterBounds(quarter, year);
@@ -89,9 +92,9 @@ router.get("/", async (req, res) => {
     const endStr = end.toISOString().split("T")[0];
 
     const [trips, fuelEntries, fuelExpenses] = await Promise.all([
-      db.select().from(tripsTable),
-      db.select().from(fuelEntriesTable),
-      db.select().from(expensesTable),
+      db.select().from(tripsTable).where(eq(tripsTable.userId, uid)),
+      db.select().from(fuelEntriesTable).where(eq(fuelEntriesTable.userId, uid)),
+      db.select().from(expensesTable).where(eq(expensesTable.userId, uid)),
     ]);
 
     const filteredTrips = trips.filter((t) => t.date >= startStr && t.date <= endStr);
