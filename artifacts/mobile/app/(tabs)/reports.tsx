@@ -6,13 +6,17 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { router } from "expo-router";
+import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
 import { Colors } from "@/constants/colors";
-import { useSummary, useExpenses, useIncome } from "../../hooks/useApi";
+import { useSummary, useExpenses, useIncome, useTrips } from "../../hooks/useApi";
 import { DateRangePicker } from "@/components/DateRangePicker";
 import { useColorScheme } from "@/hooks/useColorScheme";
 
@@ -130,6 +134,7 @@ export default function ReportsScreen() {
   const C = Colors[colorScheme === "dark" ? "dark" : "light"];
   const [tab, setTab] = useState<ReportTab>("all");
   const [refreshing, setRefreshing] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [presetLabel, setPresetLabel] = useState("This Month");
   const [dateRange, setDateRange] = useState(() => PRESETS[2].getRange());
   const [pickerVisible, setPickerVisible] = useState(false);
@@ -137,6 +142,7 @@ export default function ReportsScreen() {
   const { data: summary, refetch: refetchSummary } = useSummary();
   const { data: expensesRaw, refetch: refetchExpenses } = useExpenses();
   const { data: incomeRaw, refetch: refetchIncome } = useIncome();
+  const { data: tripsRaw } = useTrips();
 
   useFocusEffect(
     useCallback(() => {
@@ -166,9 +172,103 @@ export default function ReportsScreen() {
     });
   }, [incomeRaw, dateRange]);
 
+  const trips = useMemo(() => {
+    return (tripsRaw ?? []).filter((t: any) => {
+      const d = new Date(t.date || t.createdAt);
+      return d >= dateRange.start && d <= dateRange.end;
+    });
+  }, [tripsRaw, dateRange]);
+
   const totalIncome = income.reduce((s: number, i: any) => s + Number(i.amount), 0);
   const totalExpenses = expenses.reduce((s: number, e: any) => s + Number(e.amount), 0);
   const netProfit = totalIncome - totalExpenses;
+
+  const handleExport = async () => {
+    try {
+      setExporting(true);
+      const canShare = await Sharing.isAvailableAsync();
+      if (!canShare) {
+        Alert.alert("Not supported", "Sharing is not available on this device.");
+        setExporting(false);
+        return;
+      }
+
+      const esc = (v: any) => {
+        const str = v == null ? "" : String(v);
+        return str.includes(",") || str.includes('"') || str.includes("\n")
+          ? `"${str.replace(/"/g, '""')}"` : str;
+      };
+
+      const lines: string[] = [];
+
+      lines.push(`HaulLedger Report — ${presetLabel}`);
+      lines.push(`Period: ${fmtDate(dateRange.start)} to ${fmtDate(dateRange.end)}`);
+      lines.push(`Generated: ${new Date().toLocaleString()}`);
+      lines.push("");
+
+      lines.push("=== SUMMARY ===");
+      lines.push(`Total Income,$${totalIncome.toFixed(2)}`);
+      lines.push(`Total Expenses,$${totalExpenses.toFixed(2)}`);
+      lines.push(`Net Profit,$${netProfit.toFixed(2)}`);
+      lines.push("");
+
+      lines.push("=== INCOME ===");
+      lines.push("Date,Source,Route,Pickup,Delivery,Loaded Miles,Empty Miles,Amount");
+      income.forEach((i: any) => {
+        lines.push([
+          esc(i.date),
+          esc(i.source),
+          esc(i.routeName ?? (i.pickupLocation && i.deliveryLocation ? `${i.pickupLocation} → ${i.deliveryLocation}` : "")),
+          esc(i.pickupLocation),
+          esc(i.deliveryLocation),
+          esc(i.loadedMiles ?? ""),
+          esc(i.emptyMiles ?? ""),
+          esc(Number(i.amount).toFixed(2)),
+        ].join(","));
+      });
+      lines.push("");
+
+      lines.push("=== EXPENSES ===");
+      lines.push("Date,Category,Description,Amount,Payment Method");
+      expenses.forEach((e: any) => {
+        lines.push([
+          esc(e.date),
+          esc(e.category),
+          esc(e.description),
+          esc(Number(e.amount).toFixed(2)),
+          esc(e.paymentMethod),
+        ].join(","));
+      });
+      lines.push("");
+
+      if (trips.length > 0) {
+        lines.push("=== TRIPS ===");
+        lines.push("Date,Pickup,Delivery,Loaded Miles,Empty Miles,Total Miles,Jurisdiction");
+        trips.forEach((t: any) => {
+          const total = (t.loadedMiles ?? 0) + (t.emptyMiles ?? 0);
+          lines.push([
+            esc(t.date),
+            esc(t.pickupLocation),
+            esc(t.deliveryLocation),
+            esc(t.loadedMiles ?? ""),
+            esc(t.emptyMiles ?? ""),
+            esc(total || ""),
+            esc(t.jurisdiction),
+          ].join(","));
+        });
+      }
+
+      const csv = lines.join("\n");
+      const fileName = `HaulLedger_${presetLabel.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.csv`;
+      const fileUri = FileSystem.cacheDirectory + fileName;
+      await FileSystem.writeAsStringAsync(fileUri, csv, { encoding: FileSystem.EncodingType.UTF8 });
+      await Sharing.shareAsync(fileUri, { mimeType: "text/csv", dialogTitle: "Export Report" });
+    } catch (err) {
+      Alert.alert("Export failed", "Could not generate the report file.");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const expenseByCategory: Record<string, number> = {};
   expenses.forEach((e: any) => {
@@ -197,6 +297,17 @@ export default function ReportsScreen() {
         <View style={s.header}>
           <Text style={s.title}>Reports</Text>
           <View style={s.headerBtns}>
+            <TouchableOpacity
+              style={[s.headerBtn, { borderColor: C.green, backgroundColor: C.greenLight }]}
+              onPress={handleExport}
+              disabled={exporting}
+            >
+              {exporting
+                ? <ActivityIndicator size="small" color={C.green} />
+                : <Ionicons name="download-outline" size={14} color={C.green} />
+              }
+              <Text style={[s.headerBtnText, { color: C.green }]}>Export</Text>
+            </TouchableOpacity>
             <TouchableOpacity
               style={[s.headerBtn, { borderColor: C.primary, backgroundColor: C.primary + "12" }]}
               onPress={() => router.push("/ifta")}
