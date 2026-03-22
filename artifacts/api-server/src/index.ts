@@ -5,7 +5,9 @@ import { initSentry } from "./lib/sentry";
 initSentry();
 
 import app from "./app";
+import { startScheduler } from "./scheduler";
 
 app.listen(config.port, () => {
   console.log(`Server listening on port ${config.port}`);
+  startScheduler();
 });

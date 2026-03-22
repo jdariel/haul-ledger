@@ -13,6 +13,7 @@ import receiptsRouter from "./receipts";
 import storageRouter from "./storage";
 import iftaRouter from "./ifta";
 import authRouter from "./auth";
+import adminRouter from "./admin";
 
 const router: IRouter = Router();
 
@@ -20,6 +21,7 @@ const router: IRouter = Router();
 router.use(healthRouter);
 router.use("/auth", authRouter);
 router.use(storageRouter); // Receipt image serving — objects protected by ACL
+router.use("/admin", adminRouter); // Admin endpoints — protected by ADMIN_SECRET
 
 // Protected routes (JWT required)
 router.use("/expenses", requireAuth, expensesRouter);

@@ -118,11 +118,37 @@ artifacts-monorepo/
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API client
 - `pnpm run typecheck` — full TypeScript check
 
+## Database Backups
+
+Automated daily `pg_dump` backups running in-process via the API server scheduler.
+
+- **Schedule**: every day at 02:00 UTC (`node-cron`)
+- **Format**: gzip-compressed plain SQL — `backup_<ISO-timestamp>Z.sql.gz`
+- **Location**: `artifacts/api-server/backups/` (configurable via `BACKUP_DIR` env var)
+- **Retention**: 7 days (configurable via `BACKUP_RETENTION_DAYS` env var)
+- **Restore**: `gunzip -c backup_<ts>.sql.gz | psql $DATABASE_URL`
+
+### Admin Endpoints (protected by `ADMIN_SECRET` bearer token)
+
+- `POST /api/admin/backup` — trigger an immediate backup; returns filename, size, duration
+- `GET /api/admin/backups` — list all backup files with sizes and timestamps
+
+### Key Files
+
+- `artifacts/api-server/src/lib/backup.ts` — `runBackup()`, `listBackups()`, `pruneOldBackups()`
+- `artifacts/api-server/src/scheduler.ts` — `startScheduler()` wires cron job; called from `index.ts` after `app.listen()`
+- `artifacts/api-server/src/routes/admin.ts` — admin-only HTTP endpoints
+
 ## Environment Variables
 
 - `DATABASE_URL` — PostgreSQL connection string
 - `JWT_SECRET` — 128-char hex secret for JWT signing (shared env)
 - `RESEND_API_KEY` — Resend API key for OTP emails
+- `SENTRY_DSN` — Sentry DSN for API server error tracking (optional in dev)
+- `EXPO_PUBLIC_SENTRY_DSN` — Sentry DSN for mobile app (must have EXPO_PUBLIC_ prefix)
+- `ADMIN_SECRET` — Bearer token protecting `/api/admin/*` endpoints
+- `BACKUP_DIR` — Override backup directory (default: `artifacts/api-server/backups/`)
+- `BACKUP_RETENTION_DAYS` — Days to keep backups (default: 7)
 - `EXPO_PUBLIC_DOMAIN` — Replit dev domain (no https:// prefix)
 - `REPLIT_DEV_DOMAIN` — Replit dev domain
 - `REPLIT_EXPO_DEV_DOMAIN` — Expo-specific dev domain
