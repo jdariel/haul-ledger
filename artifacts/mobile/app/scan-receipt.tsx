@@ -20,8 +20,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import { Ionicons } from "@expo/vector-icons";
 
 import { Colors } from "@/constants/colors";
-import { useCreateExpense } from "@/hooks/useApi";
-import { API_BASE_URL } from "@/constants/api";
+import { useCreateExpense, apiFetch } from "@/hooks/useApi";
 import { useColorScheme } from "@/hooks/useColorScheme";
 
 async function uriToBase64(uri: string): Promise<string> {
@@ -108,21 +107,13 @@ export default function ScanReceiptScreen() {
       const base64 = await uriToBase64(uri);
 
       setScanStatus("analyzing");
-      const response = await fetch(`${API_BASE_URL}/receipts/process`, {
+      const data = await apiFetch("/receipts/process", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           imageBase64: base64,
           mimeType: "image/jpeg",
         }),
       });
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({ error: "Server error" }));
-        throw new Error(err.error ?? "Failed to process receipt");
-      }
-
-      const data = await response.json();
       const today = new Date().toISOString().split("T")[0];
 
       setParsed({
