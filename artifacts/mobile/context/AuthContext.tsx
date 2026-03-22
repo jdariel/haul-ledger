@@ -45,6 +45,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -54,6 +55,7 @@ const AuthContext = createContext<AuthContextType>({
   login: async () => {},
   register: async () => {},
   logout: async () => {},
+  deleteAccount: async () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -140,8 +142,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.replace("/(auth)/login");
   };
 
+  const deleteAccount = async () => {
+    const currentToken = await loadToken();
+    if (!currentToken) throw new Error("Not authenticated.");
+    const res = await fetch(`${API_BASE_URL}/auth/me`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${currentToken}` },
+    });
+    if (!res.ok && res.status !== 204) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || "Failed to delete account. Please try again.");
+    }
+    await clearToken();
+    setAuthToken(null);
+    setToken(null);
+    setUser(null);
+    router.replace("/(auth)/login");
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, isLoading, login, register, logout, deleteAccount }}>
       {children}
     </AuthContext.Provider>
   );

@@ -2,7 +2,10 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { Resend } from "resend";
-import { db, usersTable } from "@workspace/db";
+import {
+  db, usersTable, expensesTable, incomeTable, tripsTable,
+  fuelEntriesTable, assetsTable, savedRoutesTable, quickExpensesTable,
+} from "@workspace/db";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
 import { authLimiter } from "../middleware/rateLimits";
@@ -261,6 +264,27 @@ router.post("/reset-password", authLimiter, async (req, res) => {
 // GET /api/auth/me
 router.get("/me", requireAuth, (req, res) => {
   res.json(req.user);
+});
+
+// DELETE /api/auth/me — permanently delete the account and all associated data
+router.delete("/me", requireAuth, async (req, res) => {
+  const uid = req.user!.id;
+  try {
+    // Delete child records first to satisfy FK constraints
+    await db.delete(quickExpensesTable).where(eq(quickExpensesTable.userId, uid));
+    await db.delete(savedRoutesTable).where(eq(savedRoutesTable.userId, uid));
+    await db.delete(assetsTable).where(eq(assetsTable.userId, uid));
+    await db.delete(fuelEntriesTable).where(eq(fuelEntriesTable.userId, uid));
+    await db.delete(tripsTable).where(eq(tripsTable.userId, uid));
+    await db.delete(incomeTable).where(eq(incomeTable.userId, uid));
+    await db.delete(expensesTable).where(eq(expensesTable.userId, uid));
+    // Finally delete the user account itself
+    await db.delete(usersTable).where(eq(usersTable.id, uid));
+    res.status(204).send();
+  } catch (err) {
+    console.error("Account deletion error:", err);
+    res.status(500).json({ error: "Failed to delete account. Please try again." });
+  }
 });
 
 export default router;

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Switch,
   TextInput,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -68,11 +69,12 @@ export default function MoreScreen() {
   const colorScheme = useColorScheme();
   const C = Colors[colorScheme === "dark" ? "dark" : "light"];
   const { settings, updateSettings } = useAppContext();
-  const { user, logout } = useAuth();
+  const { user, logout, deleteAccount } = useAuth();
   const isDark = settings.colorScheme === "dark";
   const [mileTarget, setMileTarget] = useState(String(settings.mileageGoal || ""));
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const initials = user?.name
     ? user.name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()
@@ -221,11 +223,12 @@ export default function MoreScreen() {
             <Text style={s.acctBtnTextWhite}>Sign Out</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[s.acctBtnOutline, { borderColor: "#ef4444" }]}
+            style={[s.acctBtnOutline, { borderColor: "#ef4444" }, deleting && { opacity: 0.5 }]}
             onPress={() => setShowDeleteConfirm(true)}
+            disabled={deleting}
           >
-            <Ionicons name="trash-outline" size={16} color="#ef4444" />
-            <Text style={[s.acctBtnTextRed]}>Delete All Data</Text>
+            <Ionicons name="person-remove-outline" size={16} color="#ef4444" />
+            <Text style={s.acctBtnTextRed}>Delete Account</Text>
           </TouchableOpacity>
         </View>
 
@@ -235,11 +238,20 @@ export default function MoreScreen() {
 
       <ConfirmDialog
         visible={showDeleteConfirm}
-        title="Delete All Data"
-        message="This will permanently delete all your records including expenses, income, trips and fuel logs. This cannot be undone."
-        confirmText="Delete All"
+        title="Delete Account"
+        message={`This will permanently delete your account and ALL associated data — expenses, income, trips, fuel logs, and everything else.\n\nThis action cannot be undone.`}
+        confirmText={deleting ? "Deleting…" : "Delete My Account"}
         destructive
-        onConfirm={() => { setShowDeleteConfirm(false); }}
+        onConfirm={async () => {
+          setShowDeleteConfirm(false);
+          setDeleting(true);
+          try {
+            await deleteAccount();
+          } catch (err: any) {
+            setDeleting(false);
+            Alert.alert("Deletion Failed", err.message || "Something went wrong. Please try again.");
+          }
+        }}
         onCancel={() => setShowDeleteConfirm(false)}
       />
 
