@@ -12,6 +12,7 @@ interface Config {
   jwtSecret: string;
   databaseUrl: string;
   resendApiKey: string | null;
+  sentryDsn: string | null;
 }
 
 function requireEnv(name: string): string {
@@ -75,11 +76,17 @@ function validate(): Config {
     );
   }
 
+  // SENTRY_DSN — optional but recommended in production
+  const sentryDsn = optionalEnv("SENTRY_DSN");
+  if (!sentryDsn && isProd) {
+    console.warn("⚠️   SENTRY_DSN is not set — production error monitoring is disabled.");
+  }
+
   if (isProd) {
     console.log("✅  Environment validated — all required variables present.");
   }
 
-  return { port, nodeEnv, isProd, jwtSecret, databaseUrl, resendApiKey };
+  return { port, nodeEnv, isProd, jwtSecret, databaseUrl, resendApiKey, sentryDsn };
 }
 
 export const config = validate();

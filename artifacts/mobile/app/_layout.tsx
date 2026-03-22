@@ -19,6 +19,11 @@ import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { Colors } from "@/constants/colors";
 import { ONBOARDING_KEY } from "./onboarding";
+import { initSentry } from "../lib/sentry";
+import * as Sentry from "@sentry/react-native";
+
+// Initialize Sentry as early as possible — before any component renders
+initSentry();
 
 SplashScreen.preventAutoHideAsync();
 
@@ -94,7 +99,7 @@ function RootLayoutNav() {
   );
 }
 
-export default function RootLayout() {
+function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -126,3 +131,7 @@ export default function RootLayout() {
     </SafeAreaProvider>
   );
 }
+
+// Wrapping with Sentry ensures unhandled JS errors bubble up to Sentry
+// with a full component stack trace attached
+export default Sentry.wrap(RootLayout);

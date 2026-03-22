@@ -59,6 +59,13 @@
           "origin": "https://replit.com/"
         }
       ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "organization": "haulledger",
+          "project": "haulledger-mobile"
+        }
+      ],
       "expo-font",
       "expo-web-browser",
       "expo-secure-store"

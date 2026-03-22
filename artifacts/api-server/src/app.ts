@@ -3,6 +3,7 @@ import cors from "cors";
 import helmet from "helmet";
 import { globalLimiter } from "./middleware/rateLimits";
 import router from "./routes";
+import { Sentry } from "./lib/sentry";
 
 const app: Express = express();
 
@@ -29,6 +30,11 @@ app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 // ── Global rate limiting ──────────────────────────────────────────────────────
 app.use(globalLimiter);
 
+// ── API routes ────────────────────────────────────────────────────────────────
 app.use("/api", router);
+
+// ── Sentry error handler — MUST come after all routes ────────────────────────
+// Captures unhandled errors and sends them to Sentry with full request context
+Sentry.setupExpressErrorHandler(app);
 
 export default app;
