@@ -13,6 +13,7 @@ interface Config {
   databaseUrl: string;
   resendApiKey: string | null;
   sentryDsn: string | null;
+  minAppVersion: string;
 }
 
 function requireEnv(name: string): string {
@@ -82,11 +83,15 @@ function validate(): Config {
     console.warn("⚠️   SENTRY_DSN is not set — production error monitoring is disabled.");
   }
 
+  // MIN_APP_VERSION — optional, defaults to "1.0.0"
+  // Bump this when deploying a breaking API change to force old clients to update.
+  const minAppVersion = optionalEnv("MIN_APP_VERSION") ?? "1.0.0";
+
   if (isProd) {
     console.log("✅  Environment validated — all required variables present.");
   }
 
-  return { port, nodeEnv, isProd, jwtSecret, databaseUrl, resendApiKey, sentryDsn };
+  return { port, nodeEnv, isProd, jwtSecret, databaseUrl, resendApiKey, sentryDsn, minAppVersion };
 }
 
 export const config = validate();

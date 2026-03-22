@@ -17,6 +17,8 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider, useAppContext } from "@/context/AppContext";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { BiometricLockScreen } from "@/components/BiometricLockScreen";
+import { ForceUpdateScreen } from "@/components/ForceUpdateScreen";
+import { checkAppVersion } from "@/lib/versionCheck";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { Colors } from "@/constants/colors";
 import { ONBOARDING_KEY } from "./onboarding";
@@ -49,6 +51,22 @@ function RootLayoutNav() {
   const [isLocked, setIsLocked] = useState(false);
   const appState = useRef<AppStateStatus>(AppState.currentState);
   const wentToBackground = useRef(false);
+
+  const [updateRequired, setUpdateRequired] = useState(false);
+  const [updateVersions, setUpdateVersions] = useState({ current: "1.0.0", min: "1.0.0" });
+
+  useEffect(() => {
+    checkAppVersion()
+      .then((result) => {
+        if (result.updateRequired) {
+          setUpdateVersions({ current: result.currentVersion, min: result.minVersion });
+          setUpdateRequired(true);
+        }
+      })
+      .catch(() => {
+        // Network failure — don't block the user
+      });
+  }, []);
 
   // Biometric lock: watch AppState changes
   useEffect(() => {
@@ -127,6 +145,12 @@ function RootLayoutNav() {
       </Stack>
       {isLocked && (
         <BiometricLockScreen onUnlock={() => setIsLocked(false)} />
+      )}
+      {updateRequired && (
+        <ForceUpdateScreen
+          currentVersion={updateVersions.current}
+          minVersion={updateVersions.min}
+        />
       )}
     </View>
   );
