@@ -15,6 +15,10 @@ export function setOn401Handler(handler: () => void) {
   _on401 = handler;
 }
 
+export function getAuthToken(): string | null {
+  return _authToken;
+}
+
 async function apiFetch(path: string, options?: RequestInit) {
   const url = `${BASE_URL}${path}`;
   const response = await fetch(url, {

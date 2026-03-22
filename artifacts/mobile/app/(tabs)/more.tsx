@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as LocalAuthentication from "expo-local-authentication";
+import { exportCSV, exportJSON } from "@/lib/export";
 import { Colors } from "@/constants/colors";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useAppContext } from "@/context/AppContext";
@@ -76,6 +77,7 @@ export default function MoreScreen() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [exporting, setExporting] = useState<"csv" | "json" | null>(null);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricType, setBiometricType] = useState<"face" | "fingerprint" | "generic">("generic");
 
@@ -110,6 +112,30 @@ export default function MoreScreen() {
       return;
     }
     await updateSettings({ biometricLock: val });
+  };
+
+  const handleExportCSV = async () => {
+    if (exporting) return;
+    setExporting("csv");
+    try {
+      await exportCSV();
+    } catch (e: unknown) {
+      Alert.alert("Export Failed", e instanceof Error ? e.message : "Something went wrong");
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const handleExportJSON = async () => {
+    if (exporting) return;
+    setExporting("json");
+    try {
+      await exportJSON();
+    } catch (e: unknown) {
+      Alert.alert("Export Failed", e instanceof Error ? e.message : "Something went wrong");
+    } finally {
+      setExporting(null);
+    }
   };
 
   const initials = user?.name
@@ -257,11 +283,13 @@ export default function MoreScreen() {
         <Text style={s.sectionLabel}>Data & Export</Text>
         <View style={[s.card, { backgroundColor: C.card, borderColor: C.separator, padding: 0 }]}>
           <Row icon="download-outline" iconBg={C.primaryLight} iconColor={C.primary}
-            label="Export All Data" subtitle="Download a full backup of your records"
-            onPress={() => {}} C={C} />
+            label={exporting === "json" ? "Exporting…" : "Export All Data"}
+            subtitle="Full backup as JSON — all records included"
+            onPress={handleExportJSON} C={C} />
           <Row icon="document-text-outline" iconBg={C.tealLight} iconColor={C.teal}
-            label="Export as CSV" subtitle="Spreadsheet-compatible format"
-            onPress={() => {}} last C={C} />
+            label={exporting === "csv" ? "Exporting…" : "Export as CSV"}
+            subtitle="Expenses, income, fuel & trips as a spreadsheet"
+            onPress={handleExportCSV} last C={C} />
         </View>
 
         {/* Legal */}

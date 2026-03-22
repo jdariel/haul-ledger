@@ -14,6 +14,7 @@ import storageRouter from "./storage";
 import iftaRouter from "./ifta";
 import authRouter from "./auth";
 import adminRouter from "./admin";
+import exportRouter from "./export";
 
 const router: IRouter = Router();
 
@@ -34,5 +35,6 @@ router.use("/quick-expenses", requireAuth, quickExpensesRouter);
 router.use("/summary", requireAuth, summaryRouter);
 router.use("/receipts", requireAuth, receiptsRouter);
 router.use("/ifta", requireAuth, iftaRouter);
+router.use("/export", requireAuth, exportRouter);
 
 export default router;
