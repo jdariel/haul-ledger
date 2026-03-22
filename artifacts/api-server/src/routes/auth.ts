@@ -286,7 +286,38 @@ router.patch("/push-token", requireAuth, async (req, res) => {
   }
 });
 
-// DELETE /api/auth/me — permanently delete the account and all associated data
+// PATCH /api/auth/change-password
+router.patch("/change-password", requireAuth, authLimiter, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: "Current and new passwords are required." });
+    }
+    if (typeof newPassword !== "string" || newPassword.length < MIN_PASSWORD_LENGTH) {
+      return res.status(400).json({ error: `New password must be at least ${MIN_PASSWORD_LENGTH} characters.` });
+    }
+    if (currentPassword === newPassword) {
+      return res.status(400).json({ error: "New password must be different from your current password." });
+    }
+
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.id));
+    if (!user) return res.status(404).json({ error: "User not found." });
+
+    const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!valid) {
+      return res.status(401).json({ error: "Current password is incorrect." });
+    }
+
+    const newHash = await bcrypt.hash(newPassword, 12);
+    await db.update(usersTable).set({ passwordHash: newHash }).where(eq(usersTable.id, user.id));
+
+    res.json({ message: "Password updated successfully." });
+  } catch {
+    res.status(500).json({ error: "Failed to change password. Please try again." });
+  }
+});
+
 router.delete("/me", requireAuth, async (req, res) => {
   const uid = req.user!.id;
   try {

@@ -14,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as LocalAuthentication from "expo-local-authentication";
 import { exportCSV, exportJSON } from "@/lib/export";
+import Constants from "expo-constants";
 import { Colors } from "@/constants/colors";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useAppContext } from "@/context/AppContext";
@@ -305,6 +306,18 @@ export default function MoreScreen() {
 
         {/* Account */}
         <Text style={s.sectionLabel}>Account</Text>
+        <View style={[s.card, { backgroundColor: C.card, borderColor: C.separator, padding: 0, marginBottom: 10 }]}>
+          <Row
+            icon="key-outline"
+            iconBg={C.primaryLight}
+            iconColor={C.primary}
+            label="Change Password"
+            subtitle="Update your account password"
+            onPress={() => router.push("/change-password")}
+            last
+            C={C}
+          />
+        </View>
         <View style={[s.card, { backgroundColor: C.card, borderColor: C.separator, gap: 10 }]}>
           <TouchableOpacity
             style={[s.acctBtn, { backgroundColor: C.primary }]}
@@ -324,7 +337,9 @@ export default function MoreScreen() {
         </View>
 
         {/* Footer */}
-        <Text style={[s.footer, { color: C.textMuted }]}>HaulLedger v1.0.0</Text>
+        <Text style={[s.footer, { color: C.textMuted }]}>
+          HaulLedger v{Constants.expoConfig?.version ?? "1.0.0"}
+        </Text>
       </ScrollView>
 
       <ConfirmDialog
