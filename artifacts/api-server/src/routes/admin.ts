@@ -10,6 +10,11 @@
  */
 
 import { Router } from "express";
+import { count, sum, gte } from "drizzle-orm";
+import {
+  db, usersTable, expensesTable, incomeTable,
+  fuelEntriesTable, tripsTable, quickExpensesTable, savedRoutesTable,
+} from "@workspace/db";
 import {
   runBackup,
   listBackups,
@@ -46,6 +51,109 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 }
+
+// GET /api/admin/stats — aggregate app usage metrics
+router.get("/stats", requireAdmin, async (_req, res) => {
+  try {
+    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const oneMonthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    const [
+      [userStats],
+      [newUsersThisWeek],
+      [newUsersThisMonth],
+      [expenseStats],
+      [incomeStats],
+      [fuelStats],
+      [tripStats],
+      [quickExpenseStats],
+      [savedRouteStats],
+    ] = await Promise.all([
+      db.select({
+        totalUsers: count(),
+        usersWithPush: count(usersTable.expoPushToken),
+      }).from(usersTable),
+
+      db.select({ count: count() })
+        .from(usersTable)
+        .where(gte(usersTable.createdAt, oneWeekAgo)),
+
+      db.select({ count: count() })
+        .from(usersTable)
+        .where(gte(usersTable.createdAt, oneMonthAgo)),
+
+      db.select({
+        count: count(),
+        totalAmount: sum(expensesTable.amount),
+      }).from(expensesTable),
+
+      db.select({
+        count: count(),
+        totalAmount: sum(incomeTable.amount),
+      }).from(incomeTable),
+
+      db.select({
+        count: count(),
+        totalGallons: sum(fuelEntriesTable.gallons),
+        totalSpent: sum(fuelEntriesTable.totalAmount),
+      }).from(fuelEntriesTable),
+
+      db.select({
+        count: count(),
+        totalLoadedMiles: sum(tripsTable.loadedMiles),
+        totalEmptyMiles: sum(tripsTable.emptyMiles),
+      }).from(tripsTable),
+
+      db.select({ count: count() }).from(quickExpensesTable),
+
+      db.select({ count: count() }).from(savedRoutesTable),
+    ]);
+
+    const totalExpenses = parseFloat(expenseStats.totalAmount ?? "0");
+    const totalIncome = parseFloat(incomeStats.totalAmount ?? "0");
+    const totalFuelSpent = parseFloat(fuelStats.totalSpent ?? "0");
+    const totalLoadedMiles = parseFloat(tripStats.totalLoadedMiles ?? "0");
+    const totalEmptyMiles = parseFloat(tripStats.totalEmptyMiles ?? "0");
+
+    res.json({
+      generatedAt: new Date().toISOString(),
+      users: {
+        total: userStats.totalUsers,
+        newThisWeek: newUsersThisWeek.count,
+        newThisMonth: newUsersThisMonth.count,
+        withPushToken: userStats.usersWithPush,
+        pushReachPct: userStats.totalUsers > 0
+          ? `${((userStats.usersWithPush / userStats.totalUsers) * 100).toFixed(1)}%`
+          : "0%",
+      },
+      expenses: {
+        count: expenseStats.count,
+        totalDollars: totalExpenses.toFixed(2),
+      },
+      income: {
+        count: incomeStats.count,
+        totalDollars: totalIncome.toFixed(2),
+      },
+      netProfit: (totalIncome - totalExpenses).toFixed(2),
+      fuel: {
+        count: fuelStats.count,
+        totalGallons: parseFloat(fuelStats.totalGallons ?? "0").toFixed(1),
+        totalSpentDollars: totalFuelSpent.toFixed(2),
+      },
+      trips: {
+        count: tripStats.count,
+        totalLoadedMiles: totalLoadedMiles.toFixed(1),
+        totalEmptyMiles: totalEmptyMiles.toFixed(1),
+        totalMiles: (totalLoadedMiles + totalEmptyMiles).toFixed(1),
+      },
+      quickExpenseTemplates: quickExpenseStats.count,
+      savedRoutes: savedRouteStats.count,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ ok: false, error: message });
+  }
+});
 
 // POST /api/admin/backup — trigger a manual backup immediately
 router.post("/backup", requireAdmin, async (_req, res) => {
