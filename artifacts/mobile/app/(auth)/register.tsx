@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { Link } from "expo-router";
+import { Link, router } from "expo-router";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { Colors } from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
@@ -191,7 +191,15 @@ export default function RegisterScreen() {
             </TouchableOpacity>
 
             <Text style={[s.terms, { color: C.textMuted }]}>
-              By signing up, you agree to our Terms of Service and Privacy Policy.
+              By signing up, you agree to our{" "}
+              <Text style={[s.termsLink, { color: C.primary }]} onPress={() => router.push("/terms-of-service")}>
+                Terms of Service
+              </Text>
+              {" "}and{" "}
+              <Text style={[s.termsLink, { color: C.primary }]} onPress={() => router.push("/privacy-policy")}>
+                Privacy Policy
+              </Text>
+              .
             </Text>
           </View>
 
@@ -263,6 +271,7 @@ function makeStyles(C: typeof Colors.light) {
     primaryBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
 
     terms: { fontSize: 11, textAlign: "center", lineHeight: 16 },
+    termsLink: { fontWeight: "600", textDecorationLine: "underline" },
 
     switchRow: { flexDirection: "row", justifyContent: "center", gap: 6, alignItems: "center" },
     switchText: { fontSize: 14 },

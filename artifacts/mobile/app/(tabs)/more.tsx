@@ -199,6 +199,17 @@ export default function MoreScreen() {
             onPress={() => {}} last C={C} />
         </View>
 
+        {/* Legal */}
+        <Text style={s.sectionLabel}>Legal</Text>
+        <View style={[s.card, { backgroundColor: C.card, borderColor: C.separator, padding: 0 }]}>
+          <Row icon="document-text-outline" iconBg={C.primaryLight} iconColor={C.primary}
+            label="Privacy Policy" subtitle="How we collect and use your data"
+            onPress={() => router.push("/privacy-policy")} C={C} />
+          <Row icon="shield-checkmark-outline" iconBg={C.tealLight} iconColor={C.teal}
+            label="Terms of Service" subtitle="Rules for using HaulLedger"
+            onPress={() => router.push("/terms-of-service")} last C={C} />
+        </View>
+
         {/* Account */}
         <Text style={s.sectionLabel}>Account</Text>
         <View style={[s.card, { backgroundColor: C.card, borderColor: C.separator, gap: 10 }]}>
