@@ -10,20 +10,18 @@ import { eq } from "drizzle-orm";
 import crypto from "crypto";
 import { authLimiter } from "../middleware/rateLimits";
 import { requireAuth } from "../middleware/auth";
+import { config } from "../config";
 
 const router = Router();
 
-const JWT_SECRET = process.env.JWT_SECRET!;
-if (!JWT_SECRET) throw new Error("JWT_SECRET environment variable is required.");
-
+const { jwtSecret: JWT_SECRET, resendApiKey } = config;
 const JWT_EXPIRES = "30d";
 const MIN_PASSWORD_LENGTH = 8;
 const FROM_EMAIL = "HaulLedger <onboarding@resend.dev>";
 
 function getResend() {
-  const key = process.env.RESEND_API_KEY;
-  if (!key) throw new Error("RESEND_API_KEY is not configured.");
-  return new Resend(key);
+  if (!resendApiKey) throw new Error("RESEND_API_KEY is not configured.");
+  return new Resend(resendApiKey);
 }
 
 function signToken(payload: { id: number; email: string; name: string }) {

@@ -1,19 +1,7 @@
+// Config MUST be imported first — validates all required env vars before anything else loads
+import { config } from "./config";
 import app from "./app";
 
-const rawPort = process.env["PORT"];
-
-if (!rawPort) {
-  throw new Error(
-    "PORT environment variable is required but was not provided.",
-  );
-}
-
-const port = Number(rawPort);
-
-if (Number.isNaN(port) || port <= 0) {
-  throw new Error(`Invalid PORT value: "${rawPort}"`);
-}
-
-app.listen(port, () => {
-  console.log(`Server listening on port ${port}`);
+app.listen(config.port, () => {
+  console.log(`Server listening on port ${config.port}`);
 });
