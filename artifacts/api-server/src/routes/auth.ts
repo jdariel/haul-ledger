@@ -264,6 +264,28 @@ router.get("/me", requireAuth, (req, res) => {
   res.json(req.user);
 });
 
+// PATCH /api/auth/push-token — register or clear the device's Expo push token
+router.patch("/push-token", requireAuth, async (req, res) => {
+  const { token } = req.body as { token?: string | null };
+  if (token !== null && token !== undefined && typeof token !== "string") {
+    res.status(400).json({ error: "token must be a string or null" });
+    return;
+  }
+  const value = typeof token === "string" && token.trim().length > 0
+    ? token.trim()
+    : null;
+  try {
+    await db
+      .update(usersTable)
+      .set({ expoPushToken: value })
+      .where(eq(usersTable.id, req.user!.id));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("push-token update error:", err);
+    res.status(500).json({ error: "Failed to update push token" });
+  }
+});
+
 // DELETE /api/auth/me — permanently delete the account and all associated data
 router.delete("/me", requireAuth, async (req, res) => {
   const uid = req.user!.id;

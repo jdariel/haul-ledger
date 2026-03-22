@@ -5,6 +5,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { API_BASE_URL } from "@/constants/api";
 import { setAuthToken, setOn401Handler } from "@/hooks/useApi";
+import { registerPushToken, unregisterPushToken } from "@/lib/pushNotifications";
 
 const TOKEN_KEY = "auth_token";
 
@@ -86,6 +87,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setAuthToken(stored);
           setToken(stored);
           setUser(u);
+          // Re-register push token on each app launch (token may have rotated)
+          registerPushToken(stored).catch(() => {});
         } else {
           await clearToken();
           setAuthToken(null);
@@ -116,6 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthToken(data.token);
     setToken(data.token);
     setUser(data.user);
+    registerPushToken(data.token).catch(() => {});
     router.replace("/(tabs)");
   };
 
@@ -131,11 +135,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthToken(data.token);
     setToken(data.token);
     setUser(data.user);
+    registerPushToken(data.token).catch(() => {});
     // New users see the onboarding walkthrough before the main app
     router.replace("/onboarding");
   };
 
   const logout = async () => {
+    const currentToken = await loadToken().catch(() => null);
+    if (currentToken) unregisterPushToken(currentToken).catch(() => {});
     await clearToken();
     setAuthToken(null);
     setToken(null);

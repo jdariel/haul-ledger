@@ -7,6 +7,7 @@ export const usersTable = pgTable("users", {
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
+  expoPushToken: text("expo_push_token"), // Expo push notification token (nullable)
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

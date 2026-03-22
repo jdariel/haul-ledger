@@ -118,6 +118,53 @@ artifacts-monorepo/
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API client
 - `pnpm run typecheck` — full TypeScript check
 
+## Push Notifications
+
+Expo Push Notification Service — no external account or credentials needed (Expo handles APNS/FCM routing).
+
+### Architecture
+
+```
+Mobile app (on login/restore)
+  → requests OS permission
+  → gets ExponentPushToken[...]
+  → PATCH /api/auth/push-token   (saves to users.expo_push_token)
+
+Server (from any route or scheduler)
+  → sendPushToUser(user.expoPushToken, { title, body })
+  → POST https://exp.host/--/api/v2/push/send
+  → Expo → APNS (iOS) / FCM (Android) → device
+```
+
+### Key files
+
+- `artifacts/mobile/lib/pushNotifications.ts` — `registerPushToken(jwt)` / `unregisterPushToken(jwt)`; sets notification handler, requests OS permission, gets token, calls server
+- `artifacts/mobile/context/AuthContext.tsx` — calls `registerPushToken` on login, register, and session restore; calls `unregisterPushToken` on logout
+- `artifacts/api-server/src/lib/notifications.ts` — `sendPushNotifications(tokens[], msg)` / `sendPushToUser(token, msg)`; calls Expo push API
+
+### DB column
+
+`users.expo_push_token` (nullable text) — stores the device's Expo push token; updated on each login; cleared on logout.
+
+### Usage (server-side)
+
+```typescript
+import { sendPushToUser } from "../lib/notifications";
+
+// Example: notify a user after their IFTA report is ready
+await sendPushToUser(user.expoPushToken, {
+  title: "IFTA Report Ready",
+  body: "Your Q1 2026 IFTA report has been generated.",
+  data: { screen: "ifta" },
+});
+```
+
+### Notes
+
+- Push notifications only work on **physical devices** — simulators and web are silently skipped
+- Requires a **development build** (EAS Build) for production token generation; Expo Go uses a shared token in dev
+- Token registration is fire-and-forget — it never blocks login or app startup
+
 ## Database Backups
 
 Automated daily `pg_dump` backups with **two-tier storage**:
