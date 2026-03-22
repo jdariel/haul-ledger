@@ -120,22 +120,30 @@ artifacts-monorepo/
 
 ## Database Backups
 
-Automated daily `pg_dump` backups running in-process via the API server scheduler.
+Automated daily `pg_dump` backups with **two-tier storage**:
+
+| Tier | Where | Retention | Purpose |
+|------|-------|-----------|---------|
+| Local | `artifacts/api-server/backups/` | 7 days (rolling) | Fast restore |
+| Remote | Replit Object Storage (GCS) | Indefinite | Durable long-term archive |
 
 - **Schedule**: every day at 02:00 UTC (`node-cron`)
 - **Format**: gzip-compressed plain SQL — `backup_<ISO-timestamp>Z.sql.gz`
-- **Location**: `artifacts/api-server/backups/` (configurable via `BACKUP_DIR` env var)
-- **Retention**: 7 days (configurable via `BACKUP_RETENTION_DAYS` env var)
+- **GCS path**: `backups/<filename>` inside the default Replit Object Storage bucket
+- **Local retention**: configurable via `BACKUP_RETENTION_DAYS` env var (default: 7)
 - **Restore**: `gunzip -c backup_<ts>.sql.gz | psql $DATABASE_URL`
 
 ### Admin Endpoints (protected by `ADMIN_SECRET` bearer token)
 
-- `POST /api/admin/backup` — trigger an immediate backup; returns filename, size, duration
-- `GET /api/admin/backups` — list all backup files with sizes and timestamps
+```
+POST /api/admin/backup                           — trigger a backup now
+GET  /api/admin/backups                          — list all local backups + GCS names
+GET  /api/admin/backups/:filename/download       — get 1-hour signed GCS download URL
+```
 
 ### Key Files
 
-- `artifacts/api-server/src/lib/backup.ts` — `runBackup()`, `listBackups()`, `pruneOldBackups()`
+- `artifacts/api-server/src/lib/backup.ts` — `runBackup()` (pg_dump + GCS upload), `listBackups()`, `pruneOldBackups()`, `getBackupDownloadUrl()`
 - `artifacts/api-server/src/scheduler.ts` — `startScheduler()` wires cron job; called from `index.ts` after `app.listen()`
 - `artifacts/api-server/src/routes/admin.ts` — admin-only HTTP endpoints
 

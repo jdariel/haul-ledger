@@ -10,7 +10,14 @@
  */
 
 import { Router } from "express";
-import { runBackup, listBackups, pruneOldBackups, RETENTION_DAYS } from "../lib/backup";
+import {
+  runBackup,
+  listBackups,
+  pruneOldBackups,
+  getBackupDownloadUrl,
+  RETENTION_DAYS,
+  GCS_BUCKET,
+} from "../lib/backup";
 
 const router = Router();
 
@@ -22,8 +29,7 @@ function requireAdmin(
   next: import("express").NextFunction
 ) {
   if (!ADMIN_SECRET) {
-    // No secret configured — endpoint is disabled
-    res.status(503).json({ error: "Admin endpoints are not enabled. Set ADMIN_SECRET to enable them." });
+    res.status(503).json({ error: "Admin endpoints are disabled. Set ADMIN_SECRET to enable them." });
     return;
   }
   const auth = req.headers.authorization ?? "";
@@ -53,6 +59,8 @@ router.post("/backup", requireAdmin, async (_req, res) => {
         size: formatBytes(result.sizeBytes),
         sizeBytes: result.sizeBytes,
         durationMs: result.durationMs,
+        gcsObjectName: result.gcsObjectName,
+        gcsBucket: GCS_BUCKET,
       },
       pruned: deleted,
     });
@@ -62,23 +70,47 @@ router.post("/backup", requireAdmin, async (_req, res) => {
   }
 });
 
-// GET /api/admin/backups — list all backup files
+// GET /api/admin/backups — list all local backup files
 router.get("/backups", requireAdmin, async (_req, res) => {
   try {
     const backups = await listBackups();
     res.json({
       retentionDays: RETENTION_DAYS,
+      gcsBucket: GCS_BUCKET,
       count: backups.length,
       backups: backups.map((b) => ({
         filename: b.filename,
         size: formatBytes(b.sizeBytes),
         sizeBytes: b.sizeBytes,
         createdAt: b.createdAt.toISOString(),
+        gcsObjectName: GCS_BUCKET ? `backups/${b.filename}` : null,
       })),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     res.status(500).json({ ok: false, error: message });
+  }
+});
+
+// GET /api/admin/backups/:filename/download — get a 1-hour signed GCS download URL
+router.get("/backups/:filename/download", requireAdmin, async (req, res) => {
+  if (!GCS_BUCKET) {
+    res.status(503).json({ error: "GCS not configured — download URLs are unavailable." });
+    return;
+  }
+  try {
+    const { filename } = req.params;
+    // Basic safety: only allow well-formed backup filenames
+    if (!/^backup_[\dT\-Z]+\.sql\.gz$/.test(filename)) {
+      res.status(400).json({ error: "Invalid backup filename" });
+      return;
+    }
+    const downloadUrl = await getBackupDownloadUrl(filename);
+    res.json({ ok: true, filename, downloadUrl, expiresInSeconds: 3600 });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const status = message.includes("not found") ? 404 : 500;
+    res.status(status).json({ ok: false, error: message });
   }
 });
 
