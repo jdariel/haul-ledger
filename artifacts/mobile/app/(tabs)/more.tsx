@@ -17,7 +17,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as LocalAuthentication from "expo-local-authentication";
+import * as Notifications from "expo-notifications";
 import { exportCSV, exportJSON } from "@/lib/export";
+import { registerPushToken, unregisterPushToken } from "@/lib/pushNotifications";
 import Constants from "expo-constants";
 import { Colors } from "@/constants/colors";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -76,7 +78,7 @@ export default function MoreScreen() {
   const colorScheme = useColorScheme();
   const C = Colors[colorScheme === "dark" ? "dark" : "light"];
   const { settings, updateSettings } = useAppContext();
-  const { user, logout, deleteAccount, updateProfile } = useAuth();
+  const { user, token, logout, deleteAccount, updateProfile } = useAuth();
   const isDark = settings.colorScheme === "dark";
   const [mileTarget, setMileTarget] = useState(String(settings.mileageGoal || ""));
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -144,6 +146,27 @@ export default function MoreScreen() {
     } finally {
       setExporting(null);
     }
+  };
+
+  const handleNotificationsToggle = async (val: boolean) => {
+    if (!token) return;
+    if (val) {
+      const { status } = await Notifications.getPermissionsAsync();
+      if (status === "denied") {
+        Alert.alert(
+          "Notifications Blocked",
+          "Notifications are disabled in your device settings. Open Settings and enable them for HaulLedger.",
+          [{ text: "OK" }]
+        );
+        return;
+      }
+      await registerPushToken(token);
+      const { status: afterStatus } = await Notifications.getPermissionsAsync();
+      if (afterStatus !== "granted") return;
+    } else {
+      await unregisterPushToken(token);
+    }
+    await updateSettings({ notificationsEnabled: val });
   };
 
   const handleSaveProfile = async () => {
@@ -272,10 +295,15 @@ export default function MoreScreen() {
             <View style={[rowS.iconBox, { backgroundColor: C.greenLight }]}>
               <Ionicons name="notifications-outline" size={19} color={C.green} />
             </View>
-            <Text style={[s.prefLabel, { color: C.text }]}>Notifications</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.prefLabel, { color: C.text }]}>Notifications</Text>
+              <Text style={[{ fontSize: 12, color: C.textSecondary, marginTop: 1 }]}>
+                {settings.notificationsEnabled ? "Push alerts enabled" : "Push alerts disabled"}
+              </Text>
+            </View>
             <Switch
-              value={false}
-              onValueChange={() => {}}
+              value={settings.notificationsEnabled}
+              onValueChange={handleNotificationsToggle}
               trackColor={{ true: C.primary, false: C.separator }}
               thumbColor="#fff"
             />

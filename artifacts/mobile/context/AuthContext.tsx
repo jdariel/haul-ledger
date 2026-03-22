@@ -7,6 +7,17 @@ import { API_BASE_URL } from "@/constants/api";
 import { setAuthToken, setOn401Handler } from "@/hooks/useApi";
 import { registerPushToken, unregisterPushToken } from "@/lib/pushNotifications";
 
+async function getNotificationsEnabled(): Promise<boolean> {
+  try {
+    const stored = await AsyncStorage.getItem("app_settings");
+    if (!stored) return true;
+    const parsed = JSON.parse(stored);
+    return parsed.notificationsEnabled !== false;
+  } catch {
+    return true;
+  }
+}
+
 const TOKEN_KEY = "auth_token";
 
 // SecureStore is not supported on Expo web — fall back to AsyncStorage
@@ -90,7 +101,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setToken(stored);
           setUser(u);
           // Re-register push token on each app launch (token may have rotated)
-          registerPushToken(stored).catch(() => {});
+          // but only if the user hasn't disabled notifications
+          getNotificationsEnabled().then(enabled => {
+            if (enabled) registerPushToken(stored).catch(() => {});
+          });
         } else {
           await clearToken();
           setAuthToken(null);

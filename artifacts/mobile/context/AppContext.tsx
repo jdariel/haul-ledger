@@ -6,6 +6,7 @@ interface AppSettings {
   apiBaseUrl: string;
   colorScheme: "dark" | "light" | "system";
   biometricLock: boolean;
+  notificationsEnabled: boolean;
 }
 
 interface AppContextType {
@@ -18,6 +19,7 @@ const defaultSettings: AppSettings = {
   apiBaseUrl: "",
   colorScheme: "light",
   biometricLock: false,
+  notificationsEnabled: true,
 };
 
 const AppContext = createContext<AppContextType>({
