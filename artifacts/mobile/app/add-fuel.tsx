@@ -17,6 +17,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { FormInput } from "@/components/FormInput";
 import { useCreateFuelEntry } from "@/hooks/useApi";
 import { useColorScheme } from "@/hooks/useColorScheme";
+import { trackEntryAndRequestReview } from "@/lib/appReview";
 
 export default function AddFuelScreen() {
   const colorScheme = useColorScheme();
@@ -59,6 +60,7 @@ export default function AddFuelScreen() {
         jurisdiction: jurisdiction.toUpperCase().slice(0, 2),
         totalAmount: parseFloat(totalAmount),
       });
+      trackEntryAndRequestReview().catch(() => {});
       router.back();
     } catch {
       Alert.alert("Error", "Failed to save fuel entry");

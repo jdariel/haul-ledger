@@ -18,6 +18,7 @@ import { FormInput } from "@/components/FormInput";
 import { SelectField } from "@/components/SelectField";
 import { useCreateTrip, useUpdateTrip, useTrip, useTrips } from "@/hooks/useApi";
 import { useColorScheme } from "@/hooks/useColorScheme";
+import { trackEntryAndRequestReview } from "@/lib/appReview";
 
 const US_STATES = [
   "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA",
@@ -195,6 +196,7 @@ export default function AddTripScreen() {
         await updateTrip.mutateAsync({ id: editId!, data: payload });
       } else {
         await createTrip.mutateAsync(payload);
+        trackEntryAndRequestReview().catch(() => {});
       }
       router.back();
     } catch {

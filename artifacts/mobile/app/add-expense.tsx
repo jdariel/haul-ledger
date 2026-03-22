@@ -25,6 +25,7 @@ import { SelectField } from "@/components/SelectField";
 import { useCreateExpense, useUpdateExpense, useExpense } from "@/hooks/useApi";
 import { API_BASE_URL } from "@/constants/api";
 import { useColorScheme } from "@/hooks/useColorScheme";
+import { trackEntryAndRequestReview } from "@/lib/appReview";
 
 const CATEGORIES = [
   { label: "Fuel", value: "Fuel" },
@@ -199,6 +200,7 @@ export default function AddExpenseScreen() {
         await updateExpense.mutateAsync({ id: editId!, data: payload });
       } else {
         await createExpense.mutateAsync(payload as any);
+        trackEntryAndRequestReview().catch(() => {});
       }
       router.back();
     } catch {

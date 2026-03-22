@@ -20,6 +20,7 @@ import { FormInput } from "@/components/FormInput";
 import { SelectField } from "@/components/SelectField";
 import { useCreateIncome, useUpdateIncome, useIncomeEntry, useSavedRoutes, useIncome } from "@/hooks/useApi";
 import { useColorScheme } from "@/hooks/useColorScheme";
+import { trackEntryAndRequestReview } from "@/lib/appReview";
 
 async function geocode(query: string): Promise<{ lat: number; lon: number } | null> {
   try {
@@ -189,6 +190,7 @@ export default function AddIncomeScreen() {
         await updateIncome.mutateAsync({ id: editId!, data: payload });
       } else {
         await createIncome.mutateAsync(payload);
+        trackEntryAndRequestReview().catch(() => {});
       }
       router.back();
     } catch {
