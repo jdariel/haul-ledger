@@ -47,6 +47,7 @@ interface AuthContextType {
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   deleteAccount: () => Promise<void>;
+  updateProfile: (name: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -57,6 +58,7 @@ const AuthContext = createContext<AuthContextType>({
   register: async () => {},
   logout: async () => {},
   deleteAccount: async () => {},
+  updateProfile: async () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -168,8 +170,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.replace("/(auth)/login");
   };
 
+  const updateProfile = async (name: string) => {
+    const currentToken = await loadToken();
+    if (!currentToken) throw new Error("Not authenticated.");
+    const res = await fetch(`${API_BASE_URL}/auth/profile`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${currentToken}` },
+      body: JSON.stringify({ name }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to update profile.");
+    await storeToken(data.token);
+    setAuthToken(data.token);
+    setToken(data.token);
+    setUser(data.user);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, register, logout, deleteAccount }}>
+    <AuthContext.Provider value={{ user, token, isLoading, login, register, logout, deleteAccount, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );

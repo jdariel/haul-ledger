@@ -8,6 +8,10 @@ import {
   Switch,
   TextInput,
   Alert,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -72,7 +76,7 @@ export default function MoreScreen() {
   const colorScheme = useColorScheme();
   const C = Colors[colorScheme === "dark" ? "dark" : "light"];
   const { settings, updateSettings } = useAppContext();
-  const { user, logout, deleteAccount } = useAuth();
+  const { user, logout, deleteAccount, updateProfile } = useAuth();
   const isDark = settings.colorScheme === "dark";
   const [mileTarget, setMileTarget] = useState(String(settings.mileageGoal || ""));
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -81,6 +85,9 @@ export default function MoreScreen() {
   const [exporting, setExporting] = useState<"csv" | "json" | null>(null);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricType, setBiometricType] = useState<"face" | "fingerprint" | "generic">("generic");
+  const [editProfileVisible, setEditProfileVisible] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -139,6 +146,22 @@ export default function MoreScreen() {
     }
   };
 
+  const handleSaveProfile = async () => {
+    if (!editName.trim() || editName.trim().length < 2) {
+      Alert.alert("Validation", "Name must be at least 2 characters.");
+      return;
+    }
+    setSavingProfile(true);
+    try {
+      await updateProfile(editName.trim());
+      setEditProfileVisible(false);
+    } catch (e: unknown) {
+      Alert.alert("Error", e instanceof Error ? e.message : "Failed to update profile.");
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
   const initials = user?.name
     ? user.name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()
     : "??";
@@ -168,6 +191,12 @@ export default function MoreScreen() {
                 <Text style={[s.authBadgeText, { color: C.primary }]}>HaulLedger Account</Text>
               </View>
             </View>
+            <TouchableOpacity
+              style={[s.editProfileBtn, { backgroundColor: C.background }]}
+              onPress={() => { setEditName(user?.name ?? ""); setEditProfileVisible(true); }}
+            >
+              <Ionicons name="pencil-outline" size={16} color={C.textSecondary} />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -370,6 +399,57 @@ export default function MoreScreen() {
         onConfirm={async () => { setShowSignOutConfirm(false); await logout(); }}
         onCancel={() => setShowSignOutConfirm(false)}
       />
+
+      {/* Edit Profile Modal */}
+      <Modal
+        visible={editProfileVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setEditProfileVisible(false)}
+      >
+        <KeyboardAvoidingView
+          style={{ flex: 1, justifyContent: "flex-end" }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <TouchableOpacity
+            style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }}
+            onPress={() => setEditProfileVisible(false)}
+            activeOpacity={1}
+          />
+          <View style={[s.editSheet, { backgroundColor: C.card }]}>
+            <View style={s.sheetHandle} />
+            <View style={s.sheetHdr}>
+              <Text style={[s.sheetTitle, { color: C.text }]}>Edit Name</Text>
+              <TouchableOpacity onPress={() => setEditProfileVisible(false)}>
+                <Ionicons name="close" size={22} color={C.textMuted} />
+              </TouchableOpacity>
+            </View>
+            <Text style={[s.sheetSub, { color: C.textSecondary }]}>
+              This is how your name appears on your account.
+            </Text>
+            <TextInput
+              style={[s.sheetInput, { color: C.text, borderColor: C.separator, backgroundColor: C.background }]}
+              value={editName}
+              onChangeText={setEditName}
+              placeholder="Your full name"
+              placeholderTextColor={C.textMuted}
+              autoCapitalize="words"
+              returnKeyType="done"
+              onSubmitEditing={handleSaveProfile}
+            />
+            <TouchableOpacity
+              style={[s.sheetSaveBtn, { backgroundColor: C.primary }, savingProfile && { opacity: 0.7 }]}
+              onPress={handleSaveProfile}
+              disabled={savingProfile}
+              activeOpacity={0.85}
+            >
+              {savingProfile
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={s.sheetSaveBtnText}>Save</Text>}
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -391,6 +471,15 @@ function makeStyles(C: typeof Colors.light) {
     profileEmail: { fontSize: 13 },
     authBadge: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, marginTop: 2 },
     authBadgeText: { fontSize: 11, fontWeight: "700" },
+    editProfileBtn: { width: 32, height: 32, borderRadius: 8, justifyContent: "center", alignItems: "center", alignSelf: "flex-start" },
+    editSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 12, paddingHorizontal: 20, paddingBottom: 32, gap: 14 },
+    sheetHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#d1d5db", alignSelf: "center", marginBottom: 4 },
+    sheetHdr: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+    sheetTitle: { fontSize: 18, fontWeight: "700" },
+    sheetSub: { fontSize: 13, lineHeight: 19 },
+    sheetInput: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, fontSize: 16 },
+    sheetSaveBtn: { paddingVertical: 15, borderRadius: 14, alignItems: "center" },
+    sheetSaveBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
 
     goalRow: { flexDirection: "row", alignItems: "center", gap: 12 },
     goalIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: "center", alignItems: "center" },

@@ -264,6 +264,28 @@ router.get("/me", requireAuth, (req, res) => {
   res.json(req.user);
 });
 
+// PATCH /api/auth/profile — update display name
+router.patch("/profile", requireAuth, async (req, res) => {
+  const { name } = req.body as { name?: string };
+  if (!name || typeof name !== "string" || name.trim().length < 2) {
+    res.status(400).json({ error: "Name must be at least 2 characters." });
+    return;
+  }
+  try {
+    const [updated] = await db
+      .update(usersTable)
+      .set({ name: name.trim() })
+      .where(eq(usersTable.id, req.user!.id))
+      .returning({ id: usersTable.id, name: usersTable.name, email: usersTable.email });
+    if (!updated) { res.status(404).json({ error: "User not found." }); return; }
+    const newToken = signToken({ id: updated.id, email: updated.email, name: updated.name });
+    res.json({ token: newToken, user: updated });
+  } catch (err) {
+    console.error("profile update error:", err);
+    res.status(500).json({ error: "Failed to update profile." });
+  }
+});
+
 // PATCH /api/auth/push-token — register or clear the device's Expo push token
 router.patch("/push-token", requireAuth, async (req, res) => {
   const { token } = req.body as { token?: string | null };
