@@ -95,6 +95,8 @@ artifacts-monorepo/
 - Camera/photo permissions with usage descriptions
 - Privacy manifest for iOS
 - `ITSAppUsesNonExemptEncryption: false` (no exempt encryption)
+- **App icon** (`assets/images/icon.png`): AI-generated HaulLedger brand — white truck + green growth chart on `#3b82f6` blue background. 1:1. Used as app icon, Android adaptive foreground, notification icon, and web favicon.
+- **Splash screen** (`assets/images/splash-icon.png`): Full-bleed 9:16 portrait — white truck + chart centered on solid blue matching brand color. `resizeMode: "cover"` with `backgroundColor: "#3b82f6"`.
 
 ## Critical Notes
 
