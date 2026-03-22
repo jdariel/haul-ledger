@@ -10,11 +10,12 @@
  */
 
 import { Router } from "express";
-import { count, sum, gte } from "drizzle-orm";
+import { count, sum, gte, isNotNull } from "drizzle-orm";
 import {
   db, usersTable, expensesTable, incomeTable,
   fuelEntriesTable, tripsTable, quickExpensesTable, savedRoutesTable,
 } from "@workspace/db";
+import { sendPushNotifications } from "../lib/notifications";
 import {
   runBackup,
   listBackups,
@@ -148,6 +149,56 @@ router.get("/stats", requireAdmin, async (_req, res) => {
       },
       quickExpenseTemplates: quickExpenseStats.count,
       savedRoutes: savedRouteStats.count,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ ok: false, error: message });
+  }
+});
+
+// POST /api/admin/push-broadcast — send a push notification to every user with a push token
+router.post("/push-broadcast", requireAdmin, async (req, res) => {
+  const { title, body, data } = req.body as {
+    title?: string;
+    body?: string;
+    data?: Record<string, unknown>;
+  };
+
+  if (!title || typeof title !== "string" || !title.trim()) {
+    res.status(400).json({ error: "title is required." });
+    return;
+  }
+  if (!body || typeof body !== "string" || !body.trim()) {
+    res.status(400).json({ error: "body is required." });
+    return;
+  }
+
+  try {
+    const users = await db
+      .select({ expoPushToken: usersTable.expoPushToken })
+      .from(usersTable)
+      .where(isNotNull(usersTable.expoPushToken));
+
+    const tokens = users.map((u) => u.expoPushToken);
+    const receipts = await sendPushNotifications(tokens, {
+      title: title.trim(),
+      body: body.trim(),
+      data: data ?? {},
+      sound: "default",
+    });
+
+    const succeeded = receipts.filter((r) => r.status === "ok").length;
+    const failed = receipts.filter((r) => r.status === "error").length;
+
+    console.log(`[admin] Push broadcast: ${succeeded} sent, ${failed} failed — "${title}"`);
+
+    res.json({
+      ok: true,
+      targeted: tokens.length,
+      sent: receipts.length,
+      succeeded,
+      failed,
+      failedReceipts: failed > 0 ? receipts.filter((r) => r.status === "error") : undefined,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
