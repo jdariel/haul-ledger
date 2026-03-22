@@ -131,7 +131,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthToken(data.token);
     setToken(data.token);
     setUser(data.user);
-    router.replace("/(tabs)");
+    // New users see the onboarding walkthrough before the main app
+    router.replace("/onboarding");
   };
 
   const logout = async () => {

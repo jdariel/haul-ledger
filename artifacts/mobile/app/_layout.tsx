@@ -8,15 +8,17 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { View, ActivityIndicator } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/context/AppContext";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { Colors } from "@/constants/colors";
+import { ONBOARDING_KEY } from "./onboarding";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -34,14 +36,26 @@ function RootLayoutNav() {
   const isDark = colorScheme !== "light";
   const C = Colors[isDark ? "dark" : "light"];
   const { user, isLoading } = useAuth();
+  // Only perform initial routing once — login/register/logout handle their own navigation
+  const didInitNav = useRef(false);
 
   useEffect(() => {
-    if (isLoading) return;
-    if (!user) {
-      router.replace("/(auth)/login");
-    } else {
-      router.replace("/(tabs)");
-    }
+    if (isLoading || didInitNav.current) return;
+    didInitNav.current = true;
+
+    (async () => {
+      if (!user) {
+        router.replace("/(auth)/login");
+      } else {
+        // Returning user — check if they've seen onboarding
+        const onboardingDone = await AsyncStorage.getItem(ONBOARDING_KEY).catch(() => null);
+        if (!onboardingDone) {
+          router.replace("/onboarding");
+        } else {
+          router.replace("/(tabs)");
+        }
+      }
+    })();
   }, [user, isLoading]);
 
   if (isLoading) {
@@ -73,6 +87,9 @@ function RootLayoutNav() {
       <Stack.Screen name="add-route" options={{ presentation: "modal", headerShown: false }} />
       <Stack.Screen name="scan-receipt" options={{ presentation: "modal", headerShown: false }} />
       <Stack.Screen name="ifta" options={{ headerShown: false }} />
+      <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
+      <Stack.Screen name="privacy-policy" options={{ headerShown: false }} />
+      <Stack.Screen name="terms-of-service" options={{ headerShown: false }} />
     </Stack>
   );
 }
