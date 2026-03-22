@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import * as LocalAuthentication from "expo-local-authentication";
 import { Colors } from "@/constants/colors";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useAppContext } from "@/context/AppContext";
@@ -75,6 +76,41 @@ export default function MoreScreen() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricType, setBiometricType] = useState<"face" | "fingerprint" | "generic">("generic");
+
+  useEffect(() => {
+    (async () => {
+      const compatible = await LocalAuthentication.hasHardwareAsync();
+      const enrolled = await LocalAuthentication.isEnrolledAsync();
+      if (compatible && enrolled) {
+        setBiometricAvailable(true);
+        const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
+        if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
+          setBiometricType("face");
+        } else if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
+          setBiometricType("fingerprint");
+        }
+      }
+    })();
+  }, []);
+
+  const biometricLabel = biometricType === "face"
+    ? "Face ID"
+    : biometricType === "fingerprint"
+    ? "Fingerprint"
+    : "Biometric";
+
+  const handleBiometricToggle = async (val: boolean) => {
+    if (val && !biometricAvailable) {
+      Alert.alert(
+        "Not Available",
+        "Biometric authentication is not set up on this device. Enable it in your device settings first."
+      );
+      return;
+    }
+    await updateSettings({ biometricLock: val });
+  };
 
   const initials = user?.name
     ? user.name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()
@@ -186,6 +222,33 @@ export default function MoreScreen() {
               onValueChange={() => {}}
               trackColor={{ true: C.primary, false: C.separator }}
               thumbColor="#fff"
+            />
+          </View>
+        </View>
+
+        {/* Security */}
+        <Text style={s.sectionLabel}>Security</Text>
+        <View style={[s.card, { backgroundColor: C.card, borderColor: C.separator, padding: 0 }]}>
+          <View style={s.prefRow}>
+            <View style={[rowS.iconBox, { backgroundColor: "#fef2f2" }]}>
+              <Ionicons name="finger-print" size={19} color="#ef4444" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.prefLabel, { color: C.text }]}>
+                Require {biometricLabel}
+              </Text>
+              <Text style={[{ fontSize: 12, color: C.textSecondary, marginTop: 1 }]}>
+                {biometricAvailable
+                  ? "Lock app when returning from background"
+                  : "Set up biometrics in device settings to enable"}
+              </Text>
+            </View>
+            <Switch
+              value={settings.biometricLock}
+              onValueChange={handleBiometricToggle}
+              trackColor={{ true: "#ef4444", false: C.separator }}
+              thumbColor="#fff"
+              disabled={!biometricAvailable && !settings.biometricLock}
             />
           </View>
         </View>

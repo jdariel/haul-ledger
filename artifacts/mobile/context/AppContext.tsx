@@ -5,6 +5,7 @@ interface AppSettings {
   mileageGoal: number;
   apiBaseUrl: string;
   colorScheme: "dark" | "light" | "system";
+  biometricLock: boolean;
 }
 
 interface AppContextType {
@@ -16,6 +17,7 @@ const defaultSettings: AppSettings = {
   mileageGoal: 2500,
   apiBaseUrl: "",
   colorScheme: "light",
+  biometricLock: false,
 };
 
 const AppContext = createContext<AppContextType>({

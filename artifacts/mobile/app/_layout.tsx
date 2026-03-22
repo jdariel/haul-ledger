@@ -8,14 +8,15 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { View, ActivityIndicator } from "react-native";
+import { View, ActivityIndicator, AppState, AppStateStatus } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { AppProvider } from "@/context/AppContext";
+import { AppProvider, useAppContext } from "@/context/AppContext";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { BiometricLockScreen } from "@/components/BiometricLockScreen";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { Colors } from "@/constants/colors";
 import { ONBOARDING_KEY } from "./onboarding";
@@ -41,8 +42,34 @@ function RootLayoutNav() {
   const isDark = colorScheme !== "light";
   const C = Colors[isDark ? "dark" : "light"];
   const { user, isLoading } = useAuth();
+  const { settings } = useAppContext();
   // Only perform initial routing once — login/register/logout handle their own navigation
   const didInitNav = useRef(false);
+
+  const [isLocked, setIsLocked] = useState(false);
+  const appState = useRef<AppStateStatus>(AppState.currentState);
+  const wentToBackground = useRef(false);
+
+  // Biometric lock: watch AppState changes
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (nextState: AppStateStatus) => {
+      if (appState.current === "active" && nextState !== "active") {
+        // App is going to background/inactive
+        if (settings.biometricLock && user) {
+          wentToBackground.current = true;
+        }
+      }
+      if (nextState === "active" && wentToBackground.current) {
+        // App is returning to foreground
+        wentToBackground.current = false;
+        if (settings.biometricLock && user) {
+          setIsLocked(true);
+        }
+      }
+      appState.current = nextState;
+    });
+    return () => sub.remove();
+  }, [settings.biometricLock, user]);
 
   useEffect(() => {
     if (isLoading || didInitNav.current) return;
@@ -72,30 +99,35 @@ function RootLayoutNav() {
   }
 
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        contentStyle: {
-          backgroundColor: isDark ? "#0b1121" : "#f0f4ff",
-        },
-      }}
-    >
-      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="add-expense" options={{ presentation: "modal", headerShown: false }} />
-      <Stack.Screen name="add-income" options={{ presentation: "modal", headerShown: false }} />
-      <Stack.Screen name="fuel-log" options={{ headerShown: false }} />
-      <Stack.Screen name="expense-detail" options={{ headerShown: false }} />
-      <Stack.Screen name="add-fuel" options={{ presentation: "modal", headerShown: false }} />
-      <Stack.Screen name="add-trip" options={{ presentation: "modal", headerShown: false }} />
-      <Stack.Screen name="add-asset" options={{ presentation: "modal", headerShown: false }} />
-      <Stack.Screen name="add-route" options={{ presentation: "modal", headerShown: false }} />
-      <Stack.Screen name="scan-receipt" options={{ presentation: "modal", headerShown: false }} />
-      <Stack.Screen name="ifta" options={{ headerShown: false }} />
-      <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
-      <Stack.Screen name="privacy-policy" options={{ headerShown: false }} />
-      <Stack.Screen name="terms-of-service" options={{ headerShown: false }} />
-    </Stack>
+    <View style={{ flex: 1 }}>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: {
+            backgroundColor: isDark ? "#0b1121" : "#f0f4ff",
+          },
+        }}
+      >
+        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="add-expense" options={{ presentation: "modal", headerShown: false }} />
+        <Stack.Screen name="add-income" options={{ presentation: "modal", headerShown: false }} />
+        <Stack.Screen name="fuel-log" options={{ headerShown: false }} />
+        <Stack.Screen name="expense-detail" options={{ headerShown: false }} />
+        <Stack.Screen name="add-fuel" options={{ presentation: "modal", headerShown: false }} />
+        <Stack.Screen name="add-trip" options={{ presentation: "modal", headerShown: false }} />
+        <Stack.Screen name="add-asset" options={{ presentation: "modal", headerShown: false }} />
+        <Stack.Screen name="add-route" options={{ presentation: "modal", headerShown: false }} />
+        <Stack.Screen name="scan-receipt" options={{ presentation: "modal", headerShown: false }} />
+        <Stack.Screen name="ifta" options={{ headerShown: false }} />
+        <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
+        <Stack.Screen name="privacy-policy" options={{ headerShown: false }} />
+        <Stack.Screen name="terms-of-service" options={{ headerShown: false }} />
+      </Stack>
+      {isLocked && (
+        <BiometricLockScreen onUnlock={() => setIsLocked(false)} />
+      )}
+    </View>
   );
 }
 
