@@ -1,0 +1,889 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 0.1.0
+  description: HaulLedger API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: expenses
+    description: Expense operations
+  - name: income
+    description: Income operations
+  - name: fuel
+    description: Fuel entry operations
+  - name: trips
+    description: Trip operations
+  - name: assets
+    description: Fleet asset operations
+  - name: routes
+    description: Saved route operations
+  - name: quickExpenses
+    description: Quick expense template operations
+  - name: summary
+    description: Dashboard summary
+  - name: receipts
+    description: Receipt OCR processing
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /summary:
+    get:
+      operationId: getSummary
+      tags: [summary]
+      summary: Get dashboard summary
+      responses:
+        "200":
+          description: Dashboard summary data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Summary"
+
+  /expenses:
+    get:
+      operationId: getExpenses
+      tags: [expenses]
+      summary: List all expenses
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: week
+          in: query
+          schema:
+            type: boolean
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of expenses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Expense"
+    post:
+      operationId: createExpense
+      tags: [expenses]
+      summary: Create a new expense
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateExpenseInput"
+      responses:
+        "201":
+          description: Created expense
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Expense"
+
+  /expenses/{id}:
+    delete:
+      operationId: deleteExpense
+      tags: [expenses]
+      summary: Delete an expense
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted successfully
+
+  /income:
+    get:
+      operationId: getIncome
+      tags: [income]
+      summary: List all income entries
+      parameters:
+        - name: week
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: List of income entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Income"
+    post:
+      operationId: createIncome
+      tags: [income]
+      summary: Create a new income entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateIncomeInput"
+      responses:
+        "201":
+          description: Created income
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Income"
+
+  /income/{id}:
+    delete:
+      operationId: deleteIncome
+      tags: [income]
+      summary: Delete an income entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted successfully
+
+  /fuel-entries:
+    get:
+      operationId: getFuelEntries
+      tags: [fuel]
+      summary: List all fuel entries
+      responses:
+        "200":
+          description: List of fuel entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FuelEntry"
+    post:
+      operationId: createFuelEntry
+      tags: [fuel]
+      summary: Create a new fuel entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFuelEntryInput"
+      responses:
+        "201":
+          description: Created fuel entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FuelEntry"
+
+  /fuel-entries/{id}:
+    delete:
+      operationId: deleteFuelEntry
+      tags: [fuel]
+      summary: Delete a fuel entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted successfully
+
+  /trips:
+    get:
+      operationId: getTrips
+      tags: [trips]
+      summary: List all trips
+      responses:
+        "200":
+          description: List of trips
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Trip"
+    post:
+      operationId: createTrip
+      tags: [trips]
+      summary: Create a new trip
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTripInput"
+      responses:
+        "201":
+          description: Created trip
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trip"
+
+  /trips/{id}:
+    delete:
+      operationId: deleteTrip
+      tags: [trips]
+      summary: Delete a trip
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted successfully
+
+  /assets:
+    get:
+      operationId: getAssets
+      tags: [assets]
+      summary: List all fleet assets
+      responses:
+        "200":
+          description: List of fleet assets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Asset"
+    post:
+      operationId: createAsset
+      tags: [assets]
+      summary: Create a new fleet asset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAssetInput"
+      responses:
+        "201":
+          description: Created asset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asset"
+
+  /assets/{id}:
+    delete:
+      operationId: deleteAsset
+      tags: [assets]
+      summary: Delete a fleet asset
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted successfully
+
+  /saved-routes:
+    get:
+      operationId: getSavedRoutes
+      tags: [routes]
+      summary: List all saved routes
+      responses:
+        "200":
+          description: List of saved routes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SavedRoute"
+    post:
+      operationId: createSavedRoute
+      tags: [routes]
+      summary: Create a new saved route
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSavedRouteInput"
+      responses:
+        "201":
+          description: Created saved route
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SavedRoute"
+
+  /saved-routes/{id}:
+    delete:
+      operationId: deleteSavedRoute
+      tags: [routes]
+      summary: Delete a saved route
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted successfully
+
+  /quick-expenses:
+    get:
+      operationId: getQuickExpenses
+      tags: [quickExpenses]
+      summary: List all quick expense templates
+      responses:
+        "200":
+          description: List of quick expense templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/QuickExpense"
+    post:
+      operationId: createQuickExpense
+      tags: [quickExpenses]
+      summary: Create a quick expense template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateQuickExpenseInput"
+      responses:
+        "201":
+          description: Created quick expense template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuickExpense"
+
+  /quick-expenses/{id}:
+    delete:
+      operationId: deleteQuickExpense
+      tags: [quickExpenses]
+      summary: Delete a quick expense template
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted successfully
+
+  /receipts/process:
+    post:
+      operationId: processReceipt
+      tags: [receipts]
+      summary: Process a receipt image with OCR
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                imageBase64:
+                  type: string
+              required:
+                - imageBase64
+      responses:
+        "200":
+          description: Parsed receipt fields
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParsedReceipt"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    Summary:
+      type: object
+      properties:
+        totalIncome:
+          type: number
+        totalExpenses:
+          type: number
+        netProfit:
+          type: number
+        weeklyMiles:
+          type: number
+        mileageGoal:
+          type: number
+        recentActivity:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActivityItem"
+      required:
+        - totalIncome
+        - totalExpenses
+        - netProfit
+        - weeklyMiles
+        - mileageGoal
+        - recentActivity
+
+    ActivityItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [expense, income, fuel, trip]
+        description:
+          type: string
+        amount:
+          type: number
+        date:
+          type: string
+      required:
+        - id
+        - type
+        - description
+        - amount
+        - date
+
+    Expense:
+      type: object
+      properties:
+        id:
+          type: integer
+        date:
+          type: string
+        merchant:
+          type: string
+        category:
+          type: string
+        amount:
+          type: number
+        notes:
+          type: string
+          nullable: true
+        receiptUrl:
+          type: string
+          nullable: true
+        truckId:
+          type: integer
+          nullable: true
+        gallons:
+          type: number
+          nullable: true
+        pricePerGallon:
+          type: number
+          nullable: true
+        jurisdiction:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+      required:
+        - id
+        - date
+        - merchant
+        - category
+        - amount
+        - createdAt
+
+    CreateExpenseInput:
+      type: object
+      properties:
+        date:
+          type: string
+        merchant:
+          type: string
+        category:
+          type: string
+        amount:
+          type: number
+        notes:
+          type: string
+          nullable: true
+        receiptUrl:
+          type: string
+          nullable: true
+        truckId:
+          type: integer
+          nullable: true
+        gallons:
+          type: number
+          nullable: true
+        pricePerGallon:
+          type: number
+          nullable: true
+        jurisdiction:
+          type: string
+          nullable: true
+      required:
+        - date
+        - merchant
+        - category
+        - amount
+
+    Income:
+      type: object
+      properties:
+        id:
+          type: integer
+        date:
+          type: string
+        source:
+          type: string
+        amount:
+          type: number
+        trailerNumber:
+          type: string
+          nullable: true
+        routeName:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+      required:
+        - id
+        - date
+        - source
+        - amount
+        - createdAt
+
+    CreateIncomeInput:
+      type: object
+      properties:
+        date:
+          type: string
+        source:
+          type: string
+        amount:
+          type: number
+        trailerNumber:
+          type: string
+          nullable: true
+        routeName:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+      required:
+        - date
+        - source
+        - amount
+
+    FuelEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        date:
+          type: string
+        vendor:
+          type: string
+        gallons:
+          type: number
+        pricePerGallon:
+          type: number
+        jurisdiction:
+          type: string
+        totalAmount:
+          type: number
+        truckId:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+      required:
+        - id
+        - date
+        - vendor
+        - gallons
+        - pricePerGallon
+        - jurisdiction
+        - totalAmount
+        - createdAt
+
+    CreateFuelEntryInput:
+      type: object
+      properties:
+        date:
+          type: string
+        vendor:
+          type: string
+        gallons:
+          type: number
+        pricePerGallon:
+          type: number
+        jurisdiction:
+          type: string
+        totalAmount:
+          type: number
+        truckId:
+          type: integer
+          nullable: true
+      required:
+        - date
+        - vendor
+        - gallons
+        - pricePerGallon
+        - jurisdiction
+        - totalAmount
+
+    Trip:
+      type: object
+      properties:
+        id:
+          type: integer
+        date:
+          type: string
+        startOdometer:
+          type: number
+        endOdometer:
+          type: number
+        loadedMiles:
+          type: number
+        emptyMiles:
+          type: number
+        jurisdiction:
+          type: string
+        truckId:
+          type: integer
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+      required:
+        - id
+        - date
+        - startOdometer
+        - endOdometer
+        - loadedMiles
+        - emptyMiles
+        - jurisdiction
+        - createdAt
+
+    CreateTripInput:
+      type: object
+      properties:
+        date:
+          type: string
+        startOdometer:
+          type: number
+        endOdometer:
+          type: number
+        loadedMiles:
+          type: number
+        emptyMiles:
+          type: number
+        jurisdiction:
+          type: string
+        truckId:
+          type: integer
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+      required:
+        - date
+        - startOdometer
+        - endOdometer
+        - loadedMiles
+        - emptyMiles
+        - jurisdiction
+
+    Asset:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [Truck, Trailer]
+        vin:
+          type: string
+        plate:
+          type: string
+        year:
+          type: integer
+        make:
+          type: string
+        model:
+          type: string
+        totalMiles:
+          type: number
+        createdAt:
+          type: string
+      required:
+        - id
+        - type
+        - vin
+        - plate
+        - year
+        - make
+        - model
+        - totalMiles
+        - createdAt
+
+    CreateAssetInput:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [Truck, Trailer]
+        vin:
+          type: string
+        plate:
+          type: string
+        year:
+          type: integer
+        make:
+          type: string
+        model:
+          type: string
+      required:
+        - type
+        - vin
+        - plate
+        - year
+        - make
+        - model
+
+    SavedRoute:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        origin:
+          type: string
+        destination:
+          type: string
+        standardRate:
+          type: number
+        createdAt:
+          type: string
+      required:
+        - id
+        - name
+        - origin
+        - destination
+        - standardRate
+        - createdAt
+
+    CreateSavedRouteInput:
+      type: object
+      properties:
+        name:
+          type: string
+        origin:
+          type: string
+        destination:
+          type: string
+        standardRate:
+          type: number
+      required:
+        - name
+        - origin
+        - destination
+        - standardRate
+
+    QuickExpense:
+      type: object
+      properties:
+        id:
+          type: integer
+        label:
+          type: string
+        category:
+          type: string
+        defaultAmount:
+          type: number
+        createdAt:
+          type: string
+      required:
+        - id
+        - label
+        - category
+        - defaultAmount
+        - createdAt
+
+    CreateQuickExpenseInput:
+      type: object
+      properties:
+        label:
+          type: string
+        category:
+          type: string
+        defaultAmount:
+          type: number
+      required:
+        - label
+        - category
+        - defaultAmount
+
+    ParsedReceipt:
+      type: object
+      properties:
+        merchant:
+          type: string
+          nullable: true
+        date:
+          type: string
+          nullable: true
+        amount:
+          type: number
+          nullable: true
+        gallons:
+          type: number
+          nullable: true
+        pricePerGallon:
+          type: number
+          nullable: true
+        jurisdiction:
+          type: string
+          nullable: true
+        category:
+          type: string
+          nullable: true
+      required: []
