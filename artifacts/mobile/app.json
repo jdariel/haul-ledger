@@ -1,0 +1,96 @@
+{
+  "expo": {
+    "name": "HaulLedger",
+    "slug": "haul-ledger",
+    "owner": "jdariel",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "haulledger",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#3b82f6"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.haulledger.app",
+      "buildNumber": "1",
+      "requireFullScreen": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "HaulLedger uses the camera to scan and attach receipts to your expenses.",
+        "NSPhotoLibraryUsageDescription": "HaulLedger accesses your photo library to attach receipt images to expenses.",
+        "NSFaceIDUsageDescription": "HaulLedger uses Face ID to protect your financial data.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "privacyManifests": {
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": ["CA92.1"]
+          }
+        ]
+      }
+    },
+    "android": {
+      "package": "com.haulledger.app",
+      "versionCode": 1,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.INTERNET",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE",
+        "android.permission.POST_NOTIFICATIONS"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#3b82f6"
+      }
+    },
+    "web": {
+      "favicon": "./assets/images/icon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "origin": "https://replit.com/"
+        }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "organization": "haulledger",
+          "project": "haulledger-mobile"
+        }
+      ],
+      "expo-font",
+      "expo-web-browser",
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#3b82f6",
+          "sounds": [],
+          "mode": "production"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "7376b38e-bc87-4597-8740-40e26629f134"
+      }
+    }
+  }
+}
