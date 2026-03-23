@@ -1,0 +1,36 @@
+modules = ["nodejs-24"]
+
+[[artifacts]]
+id = "artifacts/api-server"
+
+[[artifacts]]
+id = "artifacts/mockup-sandbox"
+
+[deployment]
+router = "application"
+deploymentTarget = "autoscale"
+
+[deployment.postBuild]
+args = ["pnpm", "store", "prune"]
+env = { "CI" = "true" }
+
+[workflows]
+runButton = "Project"
+
+[agent]
+stack = "PNPM_WORKSPACE"
+expertMode = true
+integrations = ["github:1.0.0"]
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 20000
+
+[userenv]
+
+[userenv.shared]
+SENTRY_DSN = "https://2561b6f120e14d688035fe3a76b8a603@o4511089535418368.ingest.us.sentry.io/4511089537253376"
+EXPO_PUBLIC_SENTRY_DSN = "https://2561b6f120e14d688035fe3a76b8a603@o4511089535418368.ingest.us.sentry.io/4511089537253376"
+
+[nix]
+channel = "stable-25_05"
