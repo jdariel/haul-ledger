@@ -1,0 +1,34 @@
+Here's a prompt you can paste directly into Replit AI:Here's a detailed prompt you can paste directly into Replit AI:
+
+---
+
+**Replit AI Prompt:**
+
+> I need you to help me prepare my truck driver expense tracking app for App Store and Google Play submission. Here's everything that needs to be done:
+>
+> **Legal Pages**
+> Add a Privacy Policy page and Terms of Service page to the app. The privacy policy should explain what user data is collected (account info, expense records, mileage logs), how it's stored, and that it won't be sold to third parties. The terms of service should protect me as the developer from liability. Host both as static pages accessible from the app's login/signup screen and from the account settings menu.
+>
+> **Account Deletion**
+> Add an account deletion screen inside the app (required by Apple). It should be accessible from Settings > Account. When a user taps "Delete Account," show a confirmation dialog warning them all data will be permanently deleted, then delete their account and all associated records from the database and log them out.
+>
+> **Onboarding Flow**
+> Add a 3-step onboarding walkthrough that shows only on first launch after signup. Step 1: explain how to log a trip/expense. Step 2: explain the dashboard/reports. Step 3: prompt them to set up their profile. Include a "Skip" button on every step.
+>
+> **Environment Variables**
+> Make sure JWT_SECRET, DATABASE_URL, and RESEND_API_KEY are all referenced from environment variables and not hardcoded anywhere. Add a startup check that throws a clear error if any of these are missing in production.
+>
+> **Error Monitoring**
+> Integrate Sentry for error tracking. Set it up on both the frontend and backend so that any unhandled errors in production are automatically logged to Sentry with a stack trace. Use the Sentry DSN from an environment variable called SENTRY_DSN.
+>
+> **Database Backups**
+> Set up an automated daily database backup script that exports the database and saves it. If we're using PostgreSQL, use pg_dump. Schedule it with a cron job. Store the backup file with a timestamp in the filename.
+>
+> **App Icon & Splash Screen**
+> Generate placeholder app icon assets in all required sizes for both iOS and Android, and a splash screen. Use a simple truck/road icon style with a clean blue color scheme. I'll replace these with final designs later — I just need the structure in place.
+>
+> Do each of these one at a time and confirm with me before moving to the next. Start with the Privacy Policy and Terms of Service pages.
+
+---
+
+That last line is important — telling it to go one at a time will keep it from overwhelming you with changes all at once. Good luck with the submission prep!
