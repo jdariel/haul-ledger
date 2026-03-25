@@ -16,7 +16,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.haulledger.app",
+      "bundleIdentifier": "app.replit.haulledger",
       "buildNumber": "1",
       "requireFullScreen": true,
       "infoPlist": {
