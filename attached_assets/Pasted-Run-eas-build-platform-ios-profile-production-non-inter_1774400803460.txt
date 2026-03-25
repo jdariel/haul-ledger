@@ -1,0 +1,64 @@
+Run eas build --platform ios --profile production --non-interactive
+(node:2299) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+⚠️ Detected that your app uses Expo Go for development, this is not recommended when building production apps.
+Learn more: https://expo.fyi/why-not-build-expo-go-for-production
+To suppress this warning, set EAS_BUILD_NO_EXPO_GO_WARNING=true.
+
+Resolved "production" environment for the build. Learn more: https://docs.expo.dev/eas/environment-variables/#setting-the-environment-for-your-builds
+No environment variables with visibility "Plain text" and "Sensitive" found for the "production" environment on EAS.
+
+
+
+✔ Using remote iOS credentials (Expo server)
+
+Distribution Certificate is not validated for non-interactive builds.
+Skipping Provisioning Profile validation on Apple Servers because we aren't authenticated.
+
+Project Credentials Configuration
+
+Project                   @jdariel/haul-ledger
+Bundle Identifier         com.haulledger.app
+                          
+App Store Configuration   
+                          
+Distribution Certificate  
+Serial Number             35489CC37FA1E4690648137B94E2E00F
+Expiration Date           Wed, 24 Mar 2027 22:57:48 UTC
+Apple Team                M526488Q5B (Dariel Jimenez Bernard (Individual))
+Updated                   7 minutes ago
+                          
+Provisioning Profile      
+Developer Portal ID       3X9LJF3VW8
+Status                    active
+Expiration                Wed, 24 Mar 2027 22:57:48 UTC
+Apple Team                M526488Q5B (Dariel Jimenez Bernard (Individual))
+Updated                   2 minutes ago
+                          
+All credentials are ready to build @jdariel/haul-ledger (com.haulledger.app)
+
+Bumping expo.ios.buildNumber from 1 to 2
+
+Compressing project files and uploading to EAS Build. Learn more: https://expo.fyi/eas-build-archive
+- Uploading to EAS Build (0 / 3.4 MB)
+✔ Uploaded to EAS 
+- Computing project fingerprint
+✔ Computed project fingerprint
+
+See logs: https://expo.dev/accounts/jdariel/projects/haul-ledger/builds/7f0044f2-35ed-4f52-8693-bc20271d2fff
+
+Waiting for build to complete. You can press Ctrl+C to exit.
+- Waiting for build to complete.
+  Build queued...
+
+Start builds sooner in the priority queue.
+Sign up for a paid plan at https://expo.dev/accounts/jdariel/settings/billing
+
+Waiting in Free tier queue
+
+- Build is about to start
+✖ Build failed
+🍏 iOS build failed:
+The "Run fastlane" (https://expo.dev/accounts/jdariel/projects/haul-ledger/builds/7f0044f2-35ed-4f52-8693-bc20271d2fff#run-fastlane) step failed with an unknown error. Refer to the "Xcode logs" (https://expo.dev/accounts/jdariel/projects/haul-ledger/builds/7f0044f2-35ed-4f52-8693-bc20271d2fff#xcode-logs) phase for additional, more detailed logs
+Error: Process completed with exit code 1.
