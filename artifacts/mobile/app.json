@@ -17,7 +17,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.replit.haulledger",
-      "buildNumber": "4",
+      "buildNumber": "5",
       "requireFullScreen": true,
       "infoPlist": {
         "NSCameraUsageDescription": "HaulLedger uses the camera to scan and attach receipts to your expenses.",

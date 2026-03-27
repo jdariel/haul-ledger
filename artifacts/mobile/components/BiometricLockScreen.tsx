@@ -31,11 +31,31 @@ export function BiometricLockScreen({ onUnlock }: Props) {
 
   const triggerAuth = async () => {
     try {
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      if (!hasHardware) {
+        onUnlock();
+        return;
+      }
+
+      // Explicitly request Face ID / biometric permission on iOS
+      const { granted } = await LocalAuthentication.requestPermissionsAsync();
+      if (!granted) {
+        // Permission denied — fall back to passcode unlock via device fallback
+        const result = await LocalAuthentication.authenticateAsync({
+          promptMessage: "Unlock HaulLedger",
+          disableDeviceFallback: false,
+          fallbackLabel: "Use Passcode",
+        });
+        if (result.success) onUnlock();
+        return;
+      }
+
       const enrolled = await LocalAuthentication.isEnrolledAsync();
       if (!enrolled) {
         onUnlock();
         return;
       }
+
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage: "Unlock HaulLedger",
         fallbackLabel: "Use Passcode",
