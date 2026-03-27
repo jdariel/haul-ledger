@@ -35,38 +35,50 @@ const STEPS: Step[] = [
     icon: "receipt-outline",
     iconBg: "#dbeafe",
     iconColor: "#3b82f6",
-    title: "Log Your Hauls",
-    subtitle: "Capture every dollar earned and spent — right from the road.",
+    title: "Log Every Dollar",
+    subtitle: "Capture income, expenses, and fuel — right from the road.",
     bullets: [
-      "Tap the + button on the home screen to add income from a load",
-      "Scan receipts with your camera to log fuel, meals, and more",
-      "HaulLedger auto-calculates your profit in real time",
+      "Tap + on the home screen to log a load payment in seconds",
+      "Photograph receipts to auto-fill fuel, maintenance, and more",
+      "Fixed costs like insurance and truck payments log themselves automatically",
+    ],
+  },
+  {
+    icon: "calculator-outline",
+    iconBg: "#ede9fe",
+    iconColor: "#7c3aed",
+    title: "Know Your Cost Per Mile",
+    subtitle: "Cost Setup breaks down exactly what you spend to keep the wheels turning.",
+    bullets: [
+      "Enter your fixed costs — insurance, truck payment, permits, and more",
+      "See your fixed cost per mile based on how many miles you run",
+      "Costs sync to your expense log automatically — no double entry",
+    ],
+  },
+  {
+    icon: "trending-up-outline",
+    iconBg: "#dcfce7",
+    iconColor: "#16a34a",
+    title: "Evaluate Every Load",
+    subtitle: "Know your clean profit before you say yes to a load.",
+    bullets: [
+      "Enter the rate, miles, and today's fuel price",
+      "Load Evaluator shows fuel cost, fixed cost allocation, and net profit",
+      "See your margin % and whether the load is worth taking",
     ],
   },
   {
     icon: "bar-chart-outline",
     iconBg: "#d1fae5",
     iconColor: "#10b981",
-    title: "Know Your Numbers",
-    subtitle: "Your dashboard and reports keep your finances always in view.",
+    title: "Reports & Fleet Tools",
+    subtitle: "Everything you need to run your operation like a business.",
     bullets: [
-      "The Home tab shows weekly income, expenses, and net profit",
-      "Reports tab breaks down spending by category and time period",
+      "Dashboard shows weekly income, expenses, and net profit at a glance",
       "IFTA report tracks fuel and miles by state — export-ready each quarter",
+      "Fleet tab lets you manage drivers and log expenses on their behalf",
     ],
-  },
-  {
-    icon: "settings-outline",
-    iconBg: "#ede9fe",
-    iconColor: "#8b5cf6",
-    title: "Set Up Your Profile",
-    subtitle: "Spend 60 seconds in Settings to get the most out of HaulLedger.",
-    bullets: [
-      "Set your weekly miles target to track progress on the dashboard",
-      "Add your truck and trailer in the Fleet section",
-      "Save common expenses as quick-add buttons for one-tap logging",
-    ],
-    cta: "Go to Settings",
+    cta: "Set Up Cost Setup",
   },
 ];
 
@@ -112,7 +124,8 @@ export default function OnboardingScreen() {
 
   const handleCta = async () => {
     await markOnboardingDone();
-    router.replace("/(tabs)/more");
+    router.replace("/(tabs)");
+    setTimeout(() => router.push("/cost-setup"), 100);
   };
 
   const isLast = currentStep === STEPS.length - 1;
@@ -200,7 +213,7 @@ export default function OnboardingScreen() {
               onPress={handleCta}
             >
               <Text style={[s.ctaBtnText, { color: C.primary }]}>{STEPS[currentStep].cta}</Text>
-              <Ionicons name="settings-outline" size={15} color={C.primary} />
+              <Ionicons name="calculator-outline" size={15} color={C.primary} />
             </TouchableOpacity>
           ) : null}
 
