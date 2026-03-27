@@ -11,6 +11,7 @@ import { useColorScheme } from "@/hooks/useColorScheme";
 import {
   useCostSettings, useCostAnalysis,
   useCreateCostSetting, useUpdateCostSetting, useDeleteCostSetting,
+  useLogCostToExpense, useLogAllCostsToExpenses,
 } from "@/hooks/useApi";
 
 type Frequency = "monthly" | "weekly" | "annual" | "per_mile";
@@ -92,6 +93,8 @@ export default function CostSetupScreen() {
   const createCost = useCreateCostSetting();
   const updateCost = useUpdateCostSetting();
   const deleteCost = useDeleteCostSetting();
+  const logOne = useLogCostToExpense();
+  const logAll = useLogAllCostsToExpenses();
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -131,13 +134,54 @@ export default function CostSetupScreen() {
     try {
       if (editItem) {
         await updateCost.mutateAsync({ id: editItem.id, data: { label: label.trim(), amount: amt, frequency } });
+        closeForm();
       } else {
-        await createCost.mutateAsync({ label: label.trim(), amount: amt, frequency });
+        const res = await createCost.mutateAsync({ label: label.trim(), amount: amt, frequency });
+        closeForm();
+        if ((res as any).expenseLogged && frequency !== "per_mile") {
+          Alert.alert(
+            "Added to Expenses",
+            `"${label.trim()}" was also logged in your expenses for today. You won't need to enter it again.`,
+            [{ text: "Got it" }],
+          );
+        }
       }
-      closeForm();
     } catch (e: any) {
       Alert.alert("Error", e.message ?? "Could not save.");
     }
+  };
+
+  const handleLogOne = async (item: any) => {
+    try {
+      await logOne.mutateAsync({ id: item.id });
+      Alert.alert("Logged", `"${item.label}" added to today's expenses.`, [{ text: "OK" }]);
+    } catch (e: any) {
+      Alert.alert("Error", e.message ?? "Could not log expense.");
+    }
+  };
+
+  const handleLogAll = async () => {
+    if (!items || items.length === 0) return;
+    const loggable = items.filter((i: any) => i.frequency !== "per_mile");
+    if (loggable.length === 0) return Alert.alert("Nothing to log", "Per-mile costs can't be directly logged.");
+    Alert.alert(
+      "Log All Fixed Costs",
+      `Add all ${loggable.length} fixed costs to today's expenses?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Log All",
+          onPress: async () => {
+            try {
+              const res: any = await logAll.mutateAsync(undefined);
+              Alert.alert("Done", `${res.logged} expense${res.logged !== 1 ? "s" : ""} added for today.`, [{ text: "OK" }]);
+            } catch (e: any) {
+              Alert.alert("Error", e.message ?? "Could not log expenses.");
+            }
+          },
+        },
+      ],
+    );
   };
 
   const handleDelete = (id: number, lbl: string) => {
@@ -291,8 +335,22 @@ export default function CostSetupScreen() {
             </View>
           </View>
           <Text style={[s.sectionSub, { color: C.textSecondary, marginTop: 0 }]}>
-            Your recurring costs — used to calculate cost per mile.
+            Added costs are automatically logged to your expenses. Use "Log All" to re-log each month.
           </Text>
+
+          {/* Log All banner */}
+          {items && items.filter((i: any) => i.frequency !== "per_mile").length > 0 && (
+            <TouchableOpacity
+              style={[s.logAllBanner, { backgroundColor: "#22c55e18", borderColor: "#22c55e40" }]}
+              onPress={handleLogAll}
+              disabled={logAll.isPending}
+            >
+              {logAll.isPending
+                ? <ActivityIndicator color="#22c55e" size="small" />
+                : <Ionicons name="arrow-down-circle-outline" size={20} color="#22c55e" />}
+              <Text style={[s.logAllText, { color: "#22c55e" }]}>Log All Fixed Costs to Expenses</Text>
+            </TouchableOpacity>
+          )}
 
           {!items || items.length === 0 ? (
             <View style={[s.emptyBox, { backgroundColor: C.card, borderColor: C.separator }]}>
@@ -322,6 +380,11 @@ export default function CostSetupScreen() {
                   <Text style={[s.costAmount, { color: C.text }]}>
                     {fmt(item.amount)}
                   </Text>
+                  {item.frequency !== "per_mile" && (
+                    <TouchableOpacity onPress={() => handleLogOne(item)} style={s.iconBtn} disabled={logOne.isPending}>
+                      <Ionicons name="arrow-down-circle-outline" size={18} color="#22c55e" />
+                    </TouchableOpacity>
+                  )}
                   <TouchableOpacity onPress={() => openEdit(item)} style={s.iconBtn}>
                     <Ionicons name="pencil-outline" size={17} color={C.textSecondary} />
                   </TouchableOpacity>
@@ -479,6 +542,8 @@ function makeStyles(C: typeof Colors.light) {
     freqOptionText: { fontSize: 14, fontWeight: "600" },
     saveBtn: { marginTop: 16, paddingVertical: 15, borderRadius: 14, alignItems: "center" },
     saveBtnText: { fontSize: 16, fontWeight: "700", color: "#fff" },
+    logAllBanner: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 13, borderRadius: 14, borderWidth: 1 },
+    logAllText: { fontSize: 14, fontWeight: "700", flex: 1 },
     presetHint: { fontSize: 13, marginBottom: 8 },
     presetList: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
     presetRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14 },

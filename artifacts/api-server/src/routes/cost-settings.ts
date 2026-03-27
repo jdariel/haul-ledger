@@ -8,6 +8,43 @@ import { requireAuth } from "../middleware/auth";
 
 const router = Router();
 
+function mapLabelToCategory(label: string): string {
+  const l = label.toLowerCase();
+  if (l.includes("insurance")) return "Insurance";
+  if (l.includes("parking")) return "Parking";
+  if (l.includes("maintenance")) return "Maintenance";
+  if (l.includes("repair")) return "Repairs";
+  if (l.includes("toll")) return "Tolls";
+  if (l.includes("fuel") || l.includes("gas")) return "Fuel";
+  if (l.includes("scale")) return "Scale Fee";
+  if (l.includes("lumper")) return "Lumper";
+  return "Other";
+}
+
+async function createExpenseForCost(
+  userId: string,
+  label: string,
+  amount: number,
+  frequency: string,
+  dateStr?: string,
+) {
+  if (frequency === "per_mile") return null;
+  const today = dateStr ?? new Date().toISOString().slice(0, 10);
+  const [expense] = await db
+    .insert(expensesTable)
+    .values({
+      userId,
+      date: today,
+      amount,
+      category: mapLabelToCategory(label),
+      description: label,
+      paymentMethod: "Other",
+      notes: "Auto-logged from Cost Setup",
+    })
+    .returning();
+  return expense;
+}
+
 // GET /api/cost-settings
 router.get("/", requireAuth, async (req, res) => {
   try {
@@ -22,10 +59,10 @@ router.get("/", requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/cost-settings
+// POST /api/cost-settings — creates cost setting AND auto-logs as expense
 router.post("/", requireAuth, async (req, res) => {
   try {
-    const { label, amount, frequency } = req.body;
+    const { label, amount, frequency, logExpense } = req.body;
     if (!label?.trim()) return res.status(400).json({ error: "Label is required" });
     if (!amount || isNaN(parseFloat(amount))) return res.status(400).json({ error: "Valid amount required" });
     const freq = frequency || "monthly";
@@ -36,7 +73,14 @@ router.post("/", requireAuth, async (req, res) => {
       .insert(costSettingsTable)
       .values({ userId: req.user!.id, label: label.trim(), amount: parseFloat(amount), frequency: freq })
       .returning();
-    res.status(201).json(item);
+
+    // Auto-log to expenses (skip per_mile — no fixed date amount)
+    let expense = null;
+    if (freq !== "per_mile" && logExpense !== false) {
+      expense = await createExpenseForCost(req.user!.id, label.trim(), parseFloat(amount), freq);
+    }
+
+    res.status(201).json({ ...item, expenseLogged: !!expense });
   } catch {
     res.status(500).json({ error: "Failed to create cost setting" });
   }
@@ -76,12 +120,54 @@ router.delete("/:id", requireAuth, async (req, res) => {
   }
 });
 
+// POST /api/cost-settings/:id/log-expense — manually log a single cost to expenses for today
+router.post("/:id/log-expense", requireAuth, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const [item] = await db
+      .select()
+      .from(costSettingsTable)
+      .where(and(eq(costSettingsTable.id, id), eq(costSettingsTable.userId, req.user!.id)));
+    if (!item) return res.status(404).json({ error: "Not found" });
+    if (item.frequency === "per_mile")
+      return res.status(400).json({ error: "Per-mile costs cannot be directly logged to expenses" });
+
+    const expense = await createExpenseForCost(req.user!.id, item.label, item.amount, item.frequency, req.body.date);
+    res.status(201).json(expense);
+  } catch {
+    res.status(500).json({ error: "Failed to log expense" });
+  }
+});
+
+// POST /api/cost-settings/log-all — log all fixed costs as expenses for a given date
+router.post("/log-all", requireAuth, async (req, res) => {
+  try {
+    const uid = req.user!.id;
+    const dateStr: string = req.body.date ?? new Date().toISOString().slice(0, 10);
+
+    const items = await db
+      .select()
+      .from(costSettingsTable)
+      .where(eq(costSettingsTable.userId, uid));
+
+    const loggable = items.filter((i) => i.frequency !== "per_mile");
+    if (loggable.length === 0) return res.json({ logged: 0, expenses: [] });
+
+    const expenses = await Promise.all(
+      loggable.map((i) => createExpenseForCost(uid, i.label, i.amount, i.frequency, dateStr)),
+    );
+
+    res.status(201).json({ logged: expenses.length, expenses });
+  } catch {
+    res.status(500).json({ error: "Failed to log all expenses" });
+  }
+});
+
 // GET /api/cost-settings/analysis — live metrics from real data
 router.get("/analysis", requireAuth, async (req, res) => {
   try {
     const uid = req.user!.id;
 
-    // ── Fuel metrics ──────────────────────────────────────────────────────────
     const [fuelAgg] = await db
       .select({
         avgPricePerGallon: avg(fuelEntriesTable.pricePerGallon),
@@ -95,12 +181,8 @@ router.get("/analysis", requireAuth, async (req, res) => {
     const totalGallons = parseFloat(fuelAgg?.totalGallons ?? "0") || 0;
     const totalFuelCost = parseFloat(fuelAgg?.totalFuelCost ?? "0") || 0;
 
-    // ── Miles metrics ─────────────────────────────────────────────────────────
     const tripRows = await db
-      .select({
-        loadedMiles: tripsTable.loadedMiles,
-        emptyMiles: tripsTable.emptyMiles,
-      })
+      .select({ loadedMiles: tripsTable.loadedMiles, emptyMiles: tripsTable.emptyMiles })
       .from(tripsTable)
       .where(eq(tripsTable.userId, uid));
 
@@ -110,7 +192,6 @@ router.get("/analysis", requireAuth, async (req, res) => {
       ? parseFloat((totalMiles / totalGallons).toFixed(2))
       : 0;
 
-    // ── Expense + Income totals ───────────────────────────────────────────────
     const [expAgg] = await db
       .select({ total: sum(expensesTable.amount) })
       .from(expensesTable)
@@ -123,7 +204,6 @@ router.get("/analysis", requireAuth, async (req, res) => {
       .where(eq(incomeTable.userId, uid));
     const totalIncome = parseFloat(incAgg?.total ?? "0") || 0;
 
-    // ── Fixed costs → monthly equivalent ─────────────────────────────────────
     const costItems = await db
       .select()
       .from(costSettingsTable)
@@ -133,7 +213,7 @@ router.get("/analysis", requireAuth, async (req, res) => {
       monthly: 1,
       weekly: 52 / 12,
       annual: 1 / 12,
-      per_mile: 0, // handled separately below
+      per_mile: 0,
     };
 
     let fixedMonthlyCost = 0;
@@ -147,26 +227,19 @@ router.get("/analysis", requireAuth, async (req, res) => {
       }
     }
 
-    // ── Derived metrics ───────────────────────────────────────────────────────
-    // Estimate months of data from trips (rough: assume 12 months if insufficient data)
     const monthsOfData = tripRows.length > 0 ? Math.max(1, totalMiles / 10000) : 1;
     const milesPerMonth = totalMiles > 0 ? totalMiles / monthsOfData : 0;
 
-    // Cost per mile: (total expenses including fuel) / total miles + per-mile fixed costs
     const variableCostPerMile = totalMiles > 0
       ? parseFloat(((totalExpenses) / totalMiles).toFixed(4))
       : 0;
     const costPerMile = totalMiles > 0
       ? parseFloat(((totalExpenses + fixedMonthlyCost * monthsOfData) / totalMiles + perMileFixed).toFixed(4))
       : 0;
-
     const revenuePerMile = totalMiles > 0
       ? parseFloat((totalIncome / totalMiles).toFixed(4))
       : 0;
-
     const netPerMile = parseFloat((revenuePerMile - costPerMile).toFixed(4));
-
-    // Break-even: how many miles/month needed to cover fixed costs
     const marginPerMile = revenuePerMile - variableCostPerMile - perMileFixed;
     const breakEvenMilesPerMonth = fixedMonthlyCost > 0 && marginPerMile > 0
       ? Math.round(fixedMonthlyCost / marginPerMile)

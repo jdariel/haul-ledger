@@ -388,6 +388,30 @@ export function useDeleteCostSetting() {
   });
 }
 
+export function useLogCostToExpense() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, date }: { id: number; date?: string }) =>
+      apiFetch(`/cost-settings/${id}/log-expense`, { method: "POST", body: JSON.stringify({ date }) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["expenses"] });
+      qc.invalidateQueries({ queryKey: ["cost-analysis"] });
+    },
+  });
+}
+
+export function useLogAllCostsToExpenses() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (date?: string) =>
+      apiFetch("/cost-settings/log-all", { method: "POST", body: JSON.stringify({ date }) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["expenses"] });
+      qc.invalidateQueries({ queryKey: ["cost-analysis"] });
+    },
+  });
+}
+
 // ── Fleet ─────────────────────────────────────────────────────────────────────
 
 export function useFleet() {
