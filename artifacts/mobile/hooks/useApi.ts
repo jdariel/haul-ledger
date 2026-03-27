@@ -337,5 +337,68 @@ export function useIFTA(quarter: number, year: number) {
   });
 }
 
+// ── Fleet ─────────────────────────────────────────────────────────────────────
+
+export function useFleet() {
+  return useQuery({
+    queryKey: ["fleet"],
+    queryFn: () => apiFetch("/fleet"),
+  });
+}
+
+export function useFleetOverview() {
+  const { data: fleet } = useFleet();
+  return useQuery({
+    queryKey: ["fleet-overview"],
+    queryFn: () => apiFetch("/fleet/overview"),
+    enabled: fleet?.role === "owner",
+  });
+}
+
+export function useCreateFleet() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) =>
+      apiFetch("/fleet", { method: "POST", body: JSON.stringify({ name }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["fleet"] }),
+  });
+}
+
+export function useJoinFleet() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (inviteCode: string) =>
+      apiFetch("/fleet/join", { method: "POST", body: JSON.stringify({ inviteCode }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["fleet"] }),
+  });
+}
+
+export function useLeaveFleet() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiFetch("/fleet/leave", { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["fleet"] }),
+  });
+}
+
+export function useDeleteFleet() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiFetch("/fleet", { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["fleet"] }),
+  });
+}
+
+export function useRemoveFleetMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: number) => apiFetch(`/fleet/members/${userId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["fleet"] });
+      qc.invalidateQueries({ queryKey: ["fleet-overview"] });
+    },
+  });
+}
+
 // Used for non-hook contexts (e.g. scan receipt screen)
 export { apiFetch };

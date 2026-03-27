@@ -15,6 +15,7 @@ import iftaRouter from "./ifta";
 import authRouter from "./auth";
 import adminRouter from "./admin";
 import exportRouter from "./export";
+import fleetRouter from "./fleet";
 
 const router: IRouter = Router();
 
@@ -36,5 +37,6 @@ router.use("/summary", requireAuth, summaryRouter);
 router.use("/receipts", requireAuth, receiptsRouter);
 router.use("/ifta", requireAuth, iftaRouter);
 router.use("/export", requireAuth, exportRouter);
+router.use("/fleet", requireAuth, fleetRouter);
 
 export default router;

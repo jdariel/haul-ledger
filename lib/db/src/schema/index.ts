@@ -134,3 +134,25 @@ export const quickExpensesTable = pgTable("quick_expenses", {
 export const insertQuickExpenseSchema = createInsertSchema(quickExpensesTable).omit({ id: true, createdAt: true });
 export type InsertQuickExpense = z.infer<typeof insertQuickExpenseSchema>;
 export type QuickExpense = typeof quickExpensesTable.$inferSelect;
+
+// ── Fleet management ──────────────────────────────────────────────────────────
+
+export const fleetsTable = pgTable("fleets", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  ownerId: integer("owner_id").references(() => usersTable.id).notNull(),
+  inviteCode: text("invite_code").notNull().unique(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type Fleet = typeof fleetsTable.$inferSelect;
+
+export const fleetMembersTable = pgTable("fleet_members", {
+  id: serial("id").primaryKey(),
+  fleetId: integer("fleet_id").references(() => fleetsTable.id).notNull(),
+  userId: integer("user_id").references(() => usersTable.id).notNull(),
+  role: text("role").notNull().default("driver"), // "owner" | "driver"
+  joinedAt: timestamp("joined_at").defaultNow().notNull(),
+});
+
+export type FleetMember = typeof fleetMembersTable.$inferSelect;

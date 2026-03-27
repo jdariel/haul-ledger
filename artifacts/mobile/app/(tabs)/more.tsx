@@ -236,8 +236,11 @@ export default function MoreScreen() {
             label="Saved Routes" subtitle="Templates for quick income logging"
             onPress={() => router.push("/add-route")} C={C} />
           <Row icon="car-outline" iconBg={C.tealLight} iconColor={C.teal}
-            label="Fleet" subtitle="Manage trucks and trailers"
+            label="Assets" subtitle="Manage trucks and trailers"
             onPress={() => router.push("/add-asset")} C={C} />
+          <Row icon="bus-outline" iconBg="#dbeafe" iconColor="#2563eb"
+            label="Fleet" subtitle="Manage drivers and view fleet-wide data"
+            onPress={() => router.push("/fleet")} C={C} />
           <Row icon="flash-outline" iconBg="#fef9c3" iconColor="#ca8a04"
             label="Quick Add" subtitle="Save common expenses for one-tap logging"
             onPress={() => router.push("/quick-add")} last C={C} />
