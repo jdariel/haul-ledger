@@ -57,9 +57,10 @@ export default function AddIncomeScreen() {
   const updateIncome = useUpdateIncome();
   const { data: savedRoutes } = useSavedRoutes();
   const { data: allIncome } = useIncome();
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { id, forUserId, driverName } = useLocalSearchParams<{ id?: string; forUserId?: string; driverName?: string }>();
   const editId = id ? parseInt(id) : null;
   const isEditing = editId != null;
+  const forDriverId = forUserId ? parseInt(forUserId) : undefined;
 
   const { data: existing, isLoading: loadingExisting } = useIncomeEntry(editId);
 
@@ -184,6 +185,7 @@ export default function AddIncomeScreen() {
     }
     if (loadedMiles != null) payload.loadedMiles = loadedMiles;
     if (emptyMiles != null) payload.emptyMiles = emptyMiles;
+    if (forDriverId) payload.forUserId = forDriverId;
 
     try {
       if (isEditing) {
@@ -218,6 +220,13 @@ export default function AddIncomeScreen() {
           <Ionicons name="close" size={24} color={C.textSecondary} />
         </TouchableOpacity>
       </View>
+
+      {driverName ? (
+        <View style={[s.driverBanner, { backgroundColor: "#2563eb18", borderColor: "#2563eb40" }]}>
+          <Ionicons name="person-circle-outline" size={18} color="#2563eb" />
+          <Text style={[s.driverBannerText, { color: "#2563eb" }]}>Adding for {driverName}</Text>
+        </View>
+      ) : null}
 
       <KeyboardAwareScrollView
         bottomOffset={20}
@@ -396,6 +405,8 @@ const s = StyleSheet.create({
     paddingBottom: 12,
   },
   title: { fontSize: 18, fontWeight: "700" },
+  driverBanner: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 20, marginBottom: 4, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1 },
+  driverBannerText: { fontSize: 14, fontWeight: "600" },
   content: { paddingHorizontal: 20, paddingTop: 8 },
   quickFillBox: {
     borderRadius: 14,

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { resolveTargetUserId } from "../utils/fleetOwnership";
 import { db, tripsTable } from "@workspace/db";
 import { eq, desc, and } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
@@ -20,9 +21,12 @@ router.get("/", requireAuth, async (req, res) => {
 
 router.post("/", requireAuth, async (req, res) => {
   try {
+    const requesterId = req.user!.id;
+    const uid = await resolveTargetUserId(requesterId, req.body.forUserId);
+    const { forUserId: _drop, ...rest } = req.body;
     const [trip] = await db
       .insert(tripsTable)
-      .values({ ...req.body, userId: req.user!.id })
+      .values({ ...rest, userId: uid })
       .returning();
     res.status(201).json({ ...trip, createdAt: trip.createdAt.toISOString() });
   } catch (err) {

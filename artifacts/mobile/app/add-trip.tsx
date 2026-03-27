@@ -61,9 +61,10 @@ export default function AddTripScreen() {
   const insets = useSafeAreaInsets();
   const createTrip = useCreateTrip();
   const updateTrip = useUpdateTrip();
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { id, forUserId, driverName } = useLocalSearchParams<{ id?: string; forUserId?: string; driverName?: string }>();
   const editId = id ? parseInt(id) : null;
   const isEditing = editId != null;
+  const forDriverId = forUserId ? parseInt(forUserId) : undefined;
 
   const { data: existing } = useTrip(editId);
   const { data: allTrips } = useTrips();
@@ -179,7 +180,7 @@ export default function AddTripScreen() {
     const startOdoNum = parseFloat(startOdo) || 0;
     const endOdoNum = parseFloat(endOdo) || (startOdoNum + loaded + empty);
 
-    const payload = {
+    const payload: any = {
       date,
       pickupLocation: pickupLocation.trim() || null,
       deliveryLocation: deliveryLocation.trim() || null,
@@ -189,6 +190,7 @@ export default function AddTripScreen() {
       emptyMiles: empty,
       jurisdiction: jurisdiction.toUpperCase().slice(0, 2),
       notes: notes.trim() || null,
+      ...(forDriverId ? { forUserId: forDriverId } : {}),
     };
 
     try {
@@ -215,6 +217,13 @@ export default function AddTripScreen() {
         <Text style={[s.title, { color: C.text }]}>{isEditing ? "Edit Trip" : "Log Trip"}</Text>
         <View style={{ width: 32 }} />
       </View>
+
+      {driverName ? (
+        <View style={[s.driverBanner, { backgroundColor: "#2563eb18", borderColor: "#2563eb40" }]}>
+          <Ionicons name="person-circle-outline" size={18} color="#2563eb" />
+          <Text style={[s.driverBannerText, { color: "#2563eb" }]}>Adding for {driverName}</Text>
+        </View>
+      ) : null}
 
       <KeyboardAwareScrollView
         bottomOffset={20}
@@ -463,6 +472,8 @@ const s = StyleSheet.create({
     paddingBottom: 12,
   },
   title: { fontSize: 18, fontWeight: "700" },
+  driverBanner: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 20, marginBottom: 4, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1 },
+  driverBannerText: { fontSize: 14, fontWeight: "600" },
   content: { paddingHorizontal: 20, paddingTop: 8, gap: 4 },
   modeToggle: {
     flexDirection: "row",

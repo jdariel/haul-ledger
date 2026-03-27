@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { resolveTargetUserId } from "../utils/fleetOwnership";
 import { db, incomeTable, tripsTable } from "@workspace/db";
 import { eq, desc, and } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
@@ -34,8 +35,10 @@ router.get("/", requireAuth, async (req, res) => {
 
 router.post("/", requireAuth, async (req, res) => {
   try {
-    const uid = req.user!.id;
+    const requesterId = req.user!.id;
+    const uid = await resolveTargetUserId(requesterId, req.body.forUserId);
     const body = { ...req.body, userId: uid };
+    delete body.forUserId;
     const [entry] = await db.insert(incomeTable).values(body).returning();
 
     if (

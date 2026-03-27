@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db, expensesTable, fuelEntriesTable } from "@workspace/db";
 import { eq, desc, and } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
+import { resolveTargetUserId } from "../utils/fleetOwnership";
 
 const router = Router();
 
@@ -37,8 +38,10 @@ router.get("/", requireAuth, async (req, res) => {
 
 router.post("/", requireAuth, async (req, res) => {
   try {
-    const uid = req.user!.id;
+    const requesterId = req.user!.id;
+    const uid = await resolveTargetUserId(requesterId, req.body.forUserId);
     const body = { ...req.body, userId: uid };
+    delete body.forUserId;
 
     const isFuel =
       body.category === "Fuel" &&

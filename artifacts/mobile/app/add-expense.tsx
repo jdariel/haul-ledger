@@ -80,9 +80,10 @@ export default function AddExpenseScreen() {
   const insets = useSafeAreaInsets();
   const createExpense = useCreateExpense();
   const updateExpense = useUpdateExpense();
-  const { scan, id } = useLocalSearchParams<{ scan?: string; id?: string }>();
+  const { scan, id, forUserId, driverName } = useLocalSearchParams<{ scan?: string; id?: string; forUserId?: string; driverName?: string }>();
   const editId = id ? parseInt(id) : null;
   const isEditing = editId != null;
+  const forDriverId = forUserId ? parseInt(forUserId) : undefined;
 
   const { data: existing, isLoading: loadingExisting } = useExpense(editId);
 
@@ -194,6 +195,7 @@ export default function AddExpenseScreen() {
       pricePerGallon: pricePerGallon ? parseFloat(pricePerGallon) : null,
       jurisdiction: jurisdiction || null,
       receiptUrl: receiptUrl ?? null,
+      ...(forDriverId ? { forUserId: forDriverId } : {}),
     };
     try {
       if (isEditing) {
@@ -226,6 +228,13 @@ export default function AddExpenseScreen() {
           <Ionicons name="close" size={24} color={C.textSecondary} />
         </TouchableOpacity>
       </View>
+
+      {driverName ? (
+        <View style={[s.driverBanner, { backgroundColor: "#2563eb18", borderColor: "#2563eb40" }]}>
+          <Ionicons name="person-circle-outline" size={18} color="#2563eb" />
+          <Text style={[s.driverBannerText, { color: "#2563eb" }]}>Adding for {driverName}</Text>
+        </View>
+      ) : null}
 
       <KeyboardAwareScrollView
         bottomOffset={20}
@@ -385,6 +394,8 @@ const s = StyleSheet.create({
     paddingBottom: 12,
   },
   title: { fontSize: 18, fontWeight: "700" },
+  driverBanner: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 20, marginBottom: 4, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1 },
+  driverBannerText: { fontSize: 14, fontWeight: "600" },
   content: { paddingHorizontal: 20, paddingTop: 8 },
   scanActions: { flexDirection: "row", gap: 10, marginBottom: 20 },
   scanBtn: {
