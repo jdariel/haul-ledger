@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Alert, ActivityIndicator, TextInput, RefreshControl, Modal,
@@ -86,9 +86,16 @@ export default function CostSetupScreen() {
   const [amount, setAmount] = useState("");
   const [frequency, setFrequency] = useState<Frequency>("monthly");
   const [showPresets, setShowPresets] = useState(false);
+  const [monthlyMiles, setMonthlyMiles] = useState("");
 
   const { data: items, isLoading: itemsLoading, refetch: refetchItems } = useCostSettings();
   const { data: analysis, isLoading: analysisLoading, refetch: refetchAnalysis } = useCostAnalysis();
+
+  useEffect(() => {
+    if (analysis?.milesPerMonth > 0 && !monthlyMiles) {
+      setMonthlyMiles(String(Math.round(analysis.milesPerMonth)));
+    }
+  }, [analysis]);
 
   const createCost = useCreateCostSetting();
   const updateCost = useUpdateCostSetting();
@@ -395,6 +402,102 @@ export default function CostSetupScreen() {
               ))}
             </View>
           )}
+
+          {/* ── Cost Per Mile Breakdown ── */}
+          {items && items.length > 0 && (() => {
+            const freqToMonthly: Record<string, number> = {
+              monthly: 1, weekly: 52 / 12, annual: 1 / 12, per_mile: 0,
+            };
+            let fixedMonthly = 0;
+            let perMileTotal = 0;
+            for (const item of items) {
+              if (item.frequency === "per_mile") {
+                perMileTotal += item.amount;
+              } else {
+                fixedMonthly += item.amount * (freqToMonthly[item.frequency] ?? 1);
+              }
+            }
+            const miles = parseFloat(monthlyMiles) || 0;
+            const fixedPerMile = miles > 0 ? fixedMonthly / miles : null;
+            const totalFixedPerMile = fixedPerMile !== null ? fixedPerMile + perMileTotal : null;
+            const fullCostPerMile = analysis?.costPerMile > 0 ? analysis.costPerMile : null;
+
+            return (
+              <View>
+                <Text style={[s.sectionTitle, { color: C.text }]}>What You Spend Per Mile</Text>
+                <View style={[s.cpmCard, { backgroundColor: C.card, borderColor: C.separator }]}>
+                  {/* Monthly miles input row */}
+                  <View style={s.cpmMilesRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.cpmMilesLabel, { color: C.textSecondary }]}>Monthly Miles</Text>
+                      <Text style={[s.cpmMilesHint, { color: C.textMuted }]}>
+                        {analysis?.milesPerMonth > 0 ? "From your trip log" : "Enter your typical monthly miles"}
+                      </Text>
+                    </View>
+                    <View style={[s.cpmMilesBox, { borderColor: C.separator, backgroundColor: C.background }]}>
+                      <TextInput
+                        style={[s.cpmMilesInput, { color: C.text }]}
+                        placeholder="e.g. 10000"
+                        placeholderTextColor={C.textMuted}
+                        value={monthlyMiles}
+                        onChangeText={setMonthlyMiles}
+                        keyboardType="numeric"
+                      />
+                    </View>
+                  </View>
+
+                  <View style={[s.cpmDivider, { backgroundColor: C.separator }]} />
+
+                  {/* Fixed cost per mile */}
+                  <View style={s.cpmRow}>
+                    <Text style={[s.cpmLabel, { color: C.textSecondary }]}>Fixed Costs / Mile</Text>
+                    <Text style={[s.cpmValue, { color: fixedPerMile !== null ? "#ef4444" : C.textMuted }]}>
+                      {fixedPerMile !== null ? fmt(fixedPerMile, 4) : miles === 0 ? "Enter miles →" : "—"}
+                    </Text>
+                  </View>
+                  <Text style={[s.cpmSub, { color: C.textMuted }]}>
+                    {fmt(fixedMonthly)}/mo ÷ {miles > 0 ? miles.toLocaleString() : "?"} mi
+                  </Text>
+
+                  {perMileTotal > 0 && (
+                    <>
+                      <View style={s.cpmRow}>
+                        <Text style={[s.cpmLabel, { color: C.textSecondary }]}>Per-Mile Costs</Text>
+                        <Text style={[s.cpmValue, { color: "#ef4444" }]}>{fmt(perMileTotal, 4)}</Text>
+                      </View>
+                      <Text style={[s.cpmSub, { color: C.textMuted }]}>Driver pay or other per-mile rates</Text>
+                    </>
+                  )}
+
+                  {totalFixedPerMile !== null && (
+                    <>
+                      <View style={[s.cpmDivider, { backgroundColor: C.separator }]} />
+                      <View style={[s.cpmTotalRow, { backgroundColor: "#ef444412", borderRadius: 12, padding: 12 }]}>
+                        <View>
+                          <Text style={[s.cpmTotalLabel, { color: C.text }]}>Fixed Cost per Mile</Text>
+                          <Text style={[s.cpmTotalSub, { color: C.textMuted }]}>From your cost setup only</Text>
+                        </View>
+                        <Text style={[s.cpmTotalValue, { color: "#ef4444" }]}>{fmt(totalFixedPerMile, 4)}/mi</Text>
+                      </View>
+                    </>
+                  )}
+
+                  {fullCostPerMile !== null && (
+                    <>
+                      <View style={[s.cpmDivider, { backgroundColor: C.separator }]} />
+                      <View style={[s.cpmTotalRow, { backgroundColor: C.primary + "12", borderRadius: 12, padding: 12 }]}>
+                        <View>
+                          <Text style={[s.cpmTotalLabel, { color: C.text }]}>All-In Cost per Mile</Text>
+                          <Text style={[s.cpmTotalSub, { color: C.textMuted }]}>Fixed + fuel + all logged expenses</Text>
+                        </View>
+                        <Text style={[s.cpmTotalValue, { color: C.primary }]}>{fmt(fullCostPerMile, 4)}/mi</Text>
+                      </View>
+                    </>
+                  )}
+                </View>
+              </View>
+            );
+          })()}
         </ScrollView>
       )}
 
@@ -544,6 +647,21 @@ function makeStyles(C: typeof Colors.light) {
     saveBtnText: { fontSize: 16, fontWeight: "700", color: "#fff" },
     logAllBanner: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 13, borderRadius: 14, borderWidth: 1 },
     logAllText: { fontSize: 14, fontWeight: "700", flex: 1 },
+    cpmCard: { borderRadius: 18, borderWidth: 1, overflow: "hidden", padding: 16, gap: 6 },
+    cpmMilesRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingBottom: 4 },
+    cpmMilesLabel: { fontSize: 14, fontWeight: "600" },
+    cpmMilesHint: { fontSize: 11, marginTop: 1 },
+    cpmMilesBox: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minWidth: 110 },
+    cpmMilesInput: { fontSize: 16, fontWeight: "700", textAlign: "right" },
+    cpmDivider: { height: 1, marginVertical: 6 },
+    cpmRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 4 },
+    cpmLabel: { fontSize: 13 },
+    cpmValue: { fontSize: 15, fontWeight: "700" },
+    cpmSub: { fontSize: 11, marginTop: -2 },
+    cpmTotalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 4 },
+    cpmTotalLabel: { fontSize: 14, fontWeight: "700" },
+    cpmTotalSub: { fontSize: 11, marginTop: 1 },
+    cpmTotalValue: { fontSize: 20, fontWeight: "900" },
     presetHint: { fontSize: 13, marginBottom: 8 },
     presetList: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
     presetRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14 },
