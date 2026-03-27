@@ -37,10 +37,15 @@ async function apiFetch(path: string, options?: RequestInit) {
   if (!response.ok) {
     let message = `HTTP ${response.status}`;
     try {
-      const body = await response.json();
-      message = body.error || message;
+      const text = await response.text();
+      try {
+        const body = JSON.parse(text);
+        message = body.error || message;
+      } catch {
+        message = text || message;
+      }
     } catch {
-      message = (await response.text()) || message;
+      // ignore — use default HTTP status message
     }
     throw new Error(message);
   }
