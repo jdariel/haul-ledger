@@ -144,6 +144,7 @@ function RootLayoutNav() {
         <Stack.Screen name="change-password" options={{ presentation: "modal", headerShown: false }} />
         <Stack.Screen name="fleet" options={{ headerShown: false }} />
         <Stack.Screen name="cost-setup" options={{ headerShown: false }} />
+        <Stack.Screen name="load-evaluator" options={{ headerShown: false }} />
       </Stack>
       {isLocked && (
         <BiometricLockScreen onUnlock={() => setIsLocked(false)} />

@@ -240,7 +240,10 @@ export default function MoreScreen() {
             onPress={() => router.push("/fleet")} C={C} />
           <Row icon="calculator-outline" iconBg="#f3e8ff" iconColor="#7c3aed"
             label="Cost Setup" subtitle="Track fixed costs, MPG, cost per mile"
-            onPress={() => router.push("/cost-setup")} last C={C} />
+            onPress={() => router.push("/cost-setup")} C={C} />
+          <Row icon="trending-up-outline" iconBg="#dcfce7" iconColor="#16a34a"
+            label="Load Evaluator" subtitle="See your clean profit before accepting a load"
+            onPress={() => router.push("/load-evaluator")} last C={C} />
         </View>
 
         {/* Goals */}
