@@ -22,7 +22,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import { Colors } from "@/constants/colors";
 import { FormInput } from "@/components/FormInput";
 import { SelectField } from "@/components/SelectField";
-import { useCreateExpense, useUpdateExpense, useExpense } from "@/hooks/useApi";
+import { useCreateExpense, useUpdateExpense, useExpense, useFleet } from "@/hooks/useApi";
 import { API_BASE_URL } from "@/constants/api";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { trackEntryAndRequestReview } from "@/lib/appReview";
@@ -84,6 +84,12 @@ export default function AddExpenseScreen() {
   const editId = id ? parseInt(id) : null;
   const isEditing = editId != null;
   const forDriverId = forUserId ? parseInt(forUserId) : undefined;
+
+  const { data: fleet } = useFleet();
+  const isOwner = fleet?.role === "owner" && !forDriverId;
+  const fleetMembers: Array<{ userId: number; name: string }> = isOwner ? (fleet?.members ?? []) : [];
+  const [selectedDriverId, setSelectedDriverId] = useState<number | null>(null);
+  const effectiveForUserId = forDriverId ?? selectedDriverId ?? undefined;
 
   const { data: existing, isLoading: loadingExisting } = useExpense(editId);
 
@@ -195,7 +201,7 @@ export default function AddExpenseScreen() {
       pricePerGallon: pricePerGallon ? parseFloat(pricePerGallon) : null,
       jurisdiction: jurisdiction || null,
       receiptUrl: receiptUrl ?? null,
-      ...(forDriverId ? { forUserId: forDriverId } : {}),
+      ...(effectiveForUserId ? { forUserId: effectiveForUserId } : {}),
     };
     try {
       if (isEditing) {
@@ -233,6 +239,32 @@ export default function AddExpenseScreen() {
         <View style={[s.driverBanner, { backgroundColor: "#2563eb18", borderColor: "#2563eb40" }]}>
           <Ionicons name="person-circle-outline" size={18} color="#2563eb" />
           <Text style={[s.driverBannerText, { color: "#2563eb" }]}>Adding for {driverName}</Text>
+        </View>
+      ) : isOwner && !isEditing && fleetMembers.length > 1 ? (
+        <View style={[s.pickerBox, { backgroundColor: C.card, borderColor: C.separator }]}>
+          <Text style={[s.pickerLabel, { color: C.textSecondary }]}>Log for</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.pickerChips}>
+            <TouchableOpacity
+              style={[s.chip, selectedDriverId === null && { backgroundColor: C.primary }]}
+              onPress={() => setSelectedDriverId(null)}
+            >
+              <Text style={[s.chipText, { color: selectedDriverId === null ? "#fff" : C.text }]}>Myself</Text>
+            </TouchableOpacity>
+            {fleetMembers.filter((m: any) => m.role !== "owner").map((m: any) => (
+              <TouchableOpacity
+                key={m.userId}
+                style={[s.chip, selectedDriverId === m.userId && { backgroundColor: C.primary }, { borderColor: C.separator, borderWidth: 1 }]}
+                onPress={() => setSelectedDriverId(m.userId)}
+              >
+                <View style={[s.chipAvatar, { backgroundColor: selectedDriverId === m.userId ? "#ffffff40" : C.primary + "20" }]}>
+                  <Text style={[s.chipAvatarText, { color: selectedDriverId === m.userId ? "#fff" : C.primary }]}>
+                    {m.name?.[0]?.toUpperCase()}
+                  </Text>
+                </View>
+                <Text style={[s.chipText, { color: selectedDriverId === m.userId ? "#fff" : C.text }]}>{m.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
       ) : null}
 
@@ -396,6 +428,13 @@ const s = StyleSheet.create({
   title: { fontSize: 18, fontWeight: "700" },
   driverBanner: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 20, marginBottom: 4, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1 },
   driverBannerText: { fontSize: 14, fontWeight: "600" },
+  pickerBox: { marginHorizontal: 20, marginBottom: 4, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1 },
+  pickerLabel: { fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 },
+  pickerChips: { flexDirection: "row", gap: 8, paddingRight: 4 },
+  chip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, backgroundColor: "transparent" },
+  chipAvatar: { width: 20, height: 20, borderRadius: 10, justifyContent: "center", alignItems: "center" },
+  chipAvatarText: { fontSize: 10, fontWeight: "800" },
+  chipText: { fontSize: 13, fontWeight: "600" },
   content: { paddingHorizontal: 20, paddingTop: 8 },
   scanActions: { flexDirection: "row", gap: 10, marginBottom: 20 },
   scanBtn: {
