@@ -43,6 +43,15 @@ Thumbs.db
 
 # Apple App Store Connect API private keys
 *.p8
+*.p12
+*.mobileprovision
+
+# Replit attached assets (may contain sensitive uploads)
+attached_assets/*.p8
+attached_assets/*.p12
+attached_assets/*.key
+attached_assets/*.pem
+attached_assets/*.mobileprovision
 
 .cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
