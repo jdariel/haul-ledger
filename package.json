@@ -12,5 +12,14 @@
   "devDependencies": {
     "prettier": "^3.8.1",
     "typescript": "~5.9.2"
+  },
+  "pnpm": {
+    "overrides": {
+      "node-forge": "^1.4.0",
+      "path-to-regexp@8.3.0": "8.4.0",
+      "picomatch@2": "^2.3.2",
+      "picomatch@3": "^3.0.2",
+      "picomatch@4": "^4.0.4"
+    }
   }
 }
