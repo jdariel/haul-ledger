@@ -135,6 +135,19 @@ export const insertQuickExpenseSchema = createInsertSchema(quickExpensesTable).o
 export type InsertQuickExpense = z.infer<typeof insertQuickExpenseSchema>;
 export type QuickExpense = typeof quickExpensesTable.$inferSelect;
 
+// ── Cost settings ─────────────────────────────────────────────────────────────
+
+export const costSettingsTable = pgTable("cost_settings", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => usersTable.id).notNull(),
+  label: text("label").notNull(),
+  amount: real("amount").notNull(),
+  frequency: text("frequency").notNull().default("monthly"), // "monthly" | "weekly" | "annual" | "per_mile"
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type CostSetting = typeof costSettingsTable.$inferSelect;
+
 // ── Fleet management ──────────────────────────────────────────────────────────
 
 export const fleetsTable = pgTable("fleets", {

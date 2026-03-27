@@ -337,6 +337,57 @@ export function useIFTA(quarter: number, year: number) {
   });
 }
 
+// ── Cost Settings ─────────────────────────────────────────────────────────────
+
+export function useCostSettings() {
+  return useQuery({
+    queryKey: ["cost-settings"],
+    queryFn: () => apiFetch("/cost-settings"),
+  });
+}
+
+export function useCostAnalysis() {
+  return useQuery({
+    queryKey: ["cost-analysis"],
+    queryFn: () => apiFetch("/cost-settings/analysis"),
+  });
+}
+
+export function useCreateCostSetting() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { label: string; amount: number; frequency: string }) =>
+      apiFetch("/cost-settings", { method: "POST", body: JSON.stringify(data) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cost-settings"] });
+      qc.invalidateQueries({ queryKey: ["cost-analysis"] });
+    },
+  });
+}
+
+export function useUpdateCostSetting() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Partial<{ label: string; amount: number; frequency: string }> }) =>
+      apiFetch(`/cost-settings/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cost-settings"] });
+      qc.invalidateQueries({ queryKey: ["cost-analysis"] });
+    },
+  });
+}
+
+export function useDeleteCostSetting() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiFetch(`/cost-settings/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cost-settings"] });
+      qc.invalidateQueries({ queryKey: ["cost-analysis"] });
+    },
+  });
+}
+
 // ── Fleet ─────────────────────────────────────────────────────────────────────
 
 export function useFleet() {

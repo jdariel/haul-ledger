@@ -143,6 +143,7 @@ function RootLayoutNav() {
         <Stack.Screen name="terms-of-service" options={{ headerShown: false }} />
         <Stack.Screen name="change-password" options={{ presentation: "modal", headerShown: false }} />
         <Stack.Screen name="fleet" options={{ headerShown: false }} />
+        <Stack.Screen name="cost-setup" options={{ headerShown: false }} />
         <Stack.Screen name="quick-add" options={{ headerShown: false }} />
       </Stack>
       {isLocked && (
