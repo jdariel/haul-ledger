@@ -80,7 +80,6 @@ export default function MoreScreen() {
   const { settings, updateSettings } = useAppContext();
   const { user, token, logout, deleteAccount, updateProfile } = useAuth();
   const isDark = settings.colorScheme === "dark";
-  const [mileTarget, setMileTarget] = useState(String(settings.mileageGoal || ""));
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -244,34 +243,6 @@ export default function MoreScreen() {
           <Row icon="trending-up-outline" iconBg="#dcfce7" iconColor="#16a34a"
             label="Load Evaluator" subtitle="See your clean profit before accepting a load"
             onPress={() => router.push("/load-evaluator")} last C={C} />
-        </View>
-
-        {/* Goals */}
-        <Text style={s.sectionLabel}>Goals</Text>
-        <View style={[s.card, { backgroundColor: C.card, borderColor: C.separator }]}>
-          <View style={s.goalRow}>
-            <View style={[s.goalIcon, { backgroundColor: C.primaryLight }]}>
-              <Ionicons name="navigate" size={18} color={C.primary} />
-            </View>
-            <View style={s.goalText}>
-              <Text style={[s.goalLabel, { color: C.text }]}>Weekly Miles Target</Text>
-              <Text style={[s.goalSub, { color: C.textSecondary }]}>Track progress on your dashboard</Text>
-            </View>
-            <TextInput
-              style={[s.goalInput, { borderColor: C.separator, color: C.text, backgroundColor: C.background }]}
-              placeholder="e.g. 2500"
-              placeholderTextColor={C.textMuted}
-              value={mileTarget}
-              onChangeText={setMileTarget}
-              keyboardType="numeric"
-            />
-            <TouchableOpacity
-              style={[s.saveBtn, { backgroundColor: C.primary }]}
-              onPress={() => updateSettings({ mileageGoal: parseInt(mileTarget) || 0 })}
-            >
-              <Text style={s.saveBtnText}>Save</Text>
-            </TouchableOpacity>
-          </View>
         </View>
 
         {/* Preferences */}
@@ -511,15 +482,6 @@ function makeStyles(C: typeof Colors.light) {
     sheetInput: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, fontSize: 16 },
     sheetSaveBtn: { paddingVertical: 15, borderRadius: 14, alignItems: "center" },
     sheetSaveBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
-
-    goalRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-    goalIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: "center", alignItems: "center" },
-    goalText: { flex: 1 },
-    goalLabel: { fontSize: 14, fontWeight: "600" },
-    goalSub: { fontSize: 12, marginTop: 1 },
-    goalInput: { borderWidth: 1, borderRadius: 9, paddingHorizontal: 10, paddingVertical: 7, fontSize: 13, width: 68 },
-    saveBtn: { borderRadius: 9, paddingHorizontal: 12, paddingVertical: 8 },
-    saveBtnText: { color: "#fff", fontSize: 13, fontWeight: "700" },
 
     prefRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12, gap: 14 },
     prefLabel: { flex: 1, fontSize: 15, fontWeight: "600" },
