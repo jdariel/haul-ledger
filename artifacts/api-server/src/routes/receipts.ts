@@ -46,25 +46,29 @@ router.post("/process", async (req, res) => {
     }
 
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      max_completion_tokens: 1024,
+      model: "gpt-4o",
+      max_completion_tokens: 512,
+      response_format: { type: "json_object" },
       messages: [
+        {
+          role: "system",
+          content: `You are a receipt OCR parser for a trucking expense tracker. Extract fields from the receipt image and return ONLY a JSON object. Never return markdown, never add commentary. All keys must be present; use null when a value is absent or inapplicable.`,
+        },
         {
           role: "user",
           content: [
             {
               type: "text",
-              text: `You are a receipt parser for a trucking expense tracker. Extract the following from the receipt image and return ONLY valid JSON with no markdown or explanation:
-{
-  "merchant": "string or null",
-  "date": "YYYY-MM-DD format or null",
-  "amount": number or null,
-  "category": "one of: Fuel, Maintenance, Lumper, Tolls, Parking, Scale Fee, Other",
-  "gallons": number or null (only for fuel receipts),
-  "pricePerGallon": number or null (only for fuel receipts),
-  "jurisdiction": "state abbreviation or null (only for fuel receipts)"
-}
-If a field is not visible or not applicable, use null. category must be one of the listed options.`,
+              text: `Parse this receipt and return a JSON object with exactly these keys:
+- merchant (string): business name shown on receipt, or null
+- date (string): date in YYYY-MM-DD format, or null
+- amount (number): total amount charged in USD (not subtotal), or null
+- category (string): one of exactly ["Fuel","Maintenance","Lumper","Tolls","Parking","Scale Fee","Other"]
+- gallons (number): gallons purchased — only for fuel receipts, otherwise null
+- pricePerGallon (number): price per gallon — only for fuel receipts, otherwise null
+- jurisdiction (string): 2-letter US state abbreviation where fuel was purchased — only for fuel, otherwise null
+
+Return JSON only. No markdown fences.`,
             },
             {
               type: "image_url",
@@ -79,11 +83,13 @@ If a field is not visible or not applicable, use null. category must be one of t
     });
 
     const content = response.choices[0]?.message?.content ?? "{}";
+    console.log("[receipts] GPT raw response:", content.slice(0, 300));
     let parsed: Record<string, unknown> = {};
     try {
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
-    } catch {
+    } catch (parseErr) {
+      console.error("[receipts] JSON parse failed:", parseErr, "raw:", content);
       parsed = {};
     }
 

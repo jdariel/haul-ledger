@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import { router } from "expo-router";
 
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
+import * as ImageManipulator from "expo-image-manipulator";
 import { Ionicons } from "@expo/vector-icons";
 
 import { Colors } from "@/constants/colors";
@@ -41,6 +42,19 @@ async function uriToBase64(uri: string): Promise<string> {
     reader.onerror = reject;
     reader.readAsDataURL(blob);
   });
+}
+
+async function resizeForUpload(uri: string): Promise<string> {
+  try {
+    const result = await ImageManipulator.manipulateAsync(
+      uri,
+      [{ resize: { width: 1200 } }],
+      { compress: 0.65, format: ImageManipulator.SaveFormat.JPEG }
+    );
+    return result.uri;
+  } catch {
+    return uri;
+  }
 }
 
 const CATEGORIES = ["Fuel", "Maintenance", "Lumper", "Tolls", "Parking", "Scale Fee", "Other"];
@@ -68,27 +82,40 @@ export default function ScanReceiptScreen() {
   const [scanStatus, setScanStatus] = useState<ScanStatus>("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [parsed, setParsed] = useState<ParsedReceipt | null>(null);
+  const cameraPermGranted = useRef(false);
 
   const createExpense = useCreateExpense();
+
+  // Pre-warm camera permission check so there's no async delay when the button is tapped
+  useEffect(() => {
+    ImagePicker.getCameraPermissionsAsync().then(({ status }) => {
+      cameraPermGranted.current = status === "granted";
+    });
+  }, []);
 
   const pickImage = async (fromCamera: boolean) => {
     let result;
     if (fromCamera) {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("Permission needed", "Camera access is required to scan receipts.");
-        return;
+      if (!cameraPermGranted.current) {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== "granted") {
+          Alert.alert("Permission needed", "Camera access is required to scan receipts.");
+          return;
+        }
+        cameraPermGranted.current = true;
       }
       result = await ImagePicker.launchCameraAsync({
         mediaTypes: ["images"],
-        quality: 0.8,
-        allowsEditing: true,
+        quality: 0.85,
+        allowsEditing: false,
+        exif: false,
       });
     } else {
       result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
-        quality: 0.8,
-        allowsEditing: true,
+        quality: 0.85,
+        allowsEditing: false,
+        exif: false,
       });
     }
 
@@ -104,7 +131,9 @@ export default function ScanReceiptScreen() {
   const processReceipt = async (uri: string) => {
     try {
       setScanStatus("uploading");
-      const base64 = await uriToBase64(uri);
+      // Resize to 1200px wide, 65% JPEG quality — keeps text legible, cuts payload size ~80%
+      const resizedUri = await resizeForUpload(uri);
+      const base64 = await uriToBase64(resizedUri);
 
       setScanStatus("analyzing");
       const data = await apiFetch("/receipts/process", {
