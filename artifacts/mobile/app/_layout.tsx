@@ -44,11 +44,12 @@ function RootLayoutNav() {
   const isDark = colorScheme !== "light";
   const C = Colors[isDark ? "dark" : "light"];
   const { user, isLoading } = useAuth();
-  const { settings } = useAppContext();
+  const { settings, settingsLoaded } = useAppContext();
   // Only perform initial routing once — login/register/logout handle their own navigation
   const didInitNav = useRef(false);
 
   const [isLocked, setIsLocked] = useState(false);
+  const didApplyStartLock = useRef(false);
   const appState = useRef<AppStateStatus>(AppState.currentState);
   const wentToBackground = useRef(false);
 
@@ -68,7 +69,16 @@ function RootLayoutNav() {
       });
   }, []);
 
-  // Biometric lock: watch AppState changes
+  // Biometric lock: lock on cold start (app launched fresh while setting is on)
+  useEffect(() => {
+    if (!settingsLoaded || isLoading || didApplyStartLock.current) return;
+    didApplyStartLock.current = true;
+    if (settings.biometricLock && user) {
+      setIsLocked(true);
+    }
+  }, [settingsLoaded, isLoading, settings.biometricLock, user]);
+
+  // Biometric lock: watch AppState changes (background → foreground)
   useEffect(() => {
     const sub = AppState.addEventListener("change", (nextState: AppStateStatus) => {
       if (appState.current === "active" && nextState !== "active") {
