@@ -36,9 +36,8 @@ async function createExpenseForCost(
       userId,
       date: today,
       amount,
+      merchant: label,
       category: mapLabelToCategory(label),
-      description: label,
-      paymentMethod: "Other",
       notes: "Auto-logged from Cost Setup",
     })
     .returning();
