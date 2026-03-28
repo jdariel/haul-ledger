@@ -44,16 +44,21 @@ async function uriToBase64(uri: string): Promise<string> {
   });
 }
 
-async function resizeForUpload(uri: string): Promise<string> {
+interface ResizeResult { uri: string; mimeType: string }
+
+async function resizeForUpload(uri: string): Promise<ResizeResult> {
   try {
     const result = await ImageManipulator.manipulateAsync(
       uri,
       [{ resize: { width: 1200 } }],
       { compress: 0.65, format: ImageManipulator.SaveFormat.JPEG }
     );
-    return result.uri;
+    return { uri: result.uri, mimeType: "image/jpeg" };
   } catch {
-    return uri;
+    // Fallback: guess mimeType from extension, default to jpeg
+    const ext = uri.split(".").pop()?.toLowerCase();
+    const mimeType = ext === "png" ? "image/png" : "image/jpeg";
+    return { uri, mimeType };
   }
 }
 
@@ -131,17 +136,14 @@ export default function ScanReceiptScreen() {
   const processReceipt = async (uri: string) => {
     try {
       setScanStatus("uploading");
-      // Resize to 1200px wide, 65% JPEG quality — keeps text legible, cuts payload size ~80%
-      const resizedUri = await resizeForUpload(uri);
+      // Resize to 1200px wide at 65% JPEG quality — keeps text legible, cuts payload ~80%
+      const { uri: resizedUri, mimeType } = await resizeForUpload(uri);
       const base64 = await uriToBase64(resizedUri);
 
       setScanStatus("analyzing");
       const data = await apiFetch("/receipts/process", {
         method: "POST",
-        body: JSON.stringify({
-          imageBase64: base64,
-          mimeType: "image/jpeg",
-        }),
+        body: JSON.stringify({ imageBase64: base64, mimeType }),
       });
       const today = new Date().toISOString().split("T")[0];
 

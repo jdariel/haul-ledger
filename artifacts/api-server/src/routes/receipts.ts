@@ -29,25 +29,26 @@ router.post("/process", async (req, res) => {
       return res.status(400).json({ error: "imageBase64 is required" });
     }
 
-    let objectPath: string | null = null;
-    try {
-      const imageBuffer = Buffer.from(imageBase64, "base64");
-      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
-      objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
-
-      const gcsUrl = uploadURL;
-      await fetch(gcsUrl, {
-        method: "PUT",
-        headers: { "Content-Type": mimeType },
-        body: imageBuffer,
+    // Run GCS upload and AI parsing in parallel — don't let storage latency block the result
+    const imageBuffer = Buffer.from(imageBase64, "base64");
+    const uploadPromise = objectStorageService.getObjectEntityUploadURL()
+      .then(async (uploadURL) => {
+        const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+        await fetch(uploadURL, {
+          method: "PUT",
+          headers: { "Content-Type": mimeType },
+          body: imageBuffer,
+        });
+        return objectPath;
+      })
+      .catch((err) => {
+        console.error("Receipt upload to storage failed:", err);
+        return null as string | null;
       });
-    } catch (uploadErr) {
-      console.error("Receipt upload to storage failed:", uploadErr);
-    }
 
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      max_completion_tokens: 512,
+      model: "gpt-5.2",
+      max_completion_tokens: 8192,
       response_format: { type: "json_object" },
       messages: [
         {
@@ -74,7 +75,6 @@ Return JSON only. No markdown fences.`,
               type: "image_url",
               image_url: {
                 url: `data:${mimeType};base64,${imageBase64}`,
-                detail: "high",
               },
             },
           ],
@@ -93,6 +93,9 @@ Return JSON only. No markdown fences.`,
       parsed = {};
     }
 
+    // Collect the storage path — parallel upload may still be in-flight; wait for it now
+    const objectPath = await uploadPromise;
+
     res.json({
       merchant: (parsed.merchant as string) ?? null,
       date: (parsed.date as string) ?? null,
@@ -103,9 +106,19 @@ Return JSON only. No markdown fences.`,
       jurisdiction: (parsed.jurisdiction as string) ?? null,
       receiptUrl: objectPath,
     });
-  } catch (err) {
+  } catch (err: unknown) {
     console.error("Receipt processing error:", err);
-    res.status(500).json({ error: "Failed to process receipt" });
+    const apiMessage =
+      err && typeof err === "object" && "error" in err && err.error &&
+      typeof err.error === "object" && "message" in err.error
+        ? String((err.error as { message: unknown }).message)
+        : null;
+    const httpStatus = err && typeof err === "object" && "status" in err
+      ? Number((err as { status: unknown }).status)
+      : 500;
+    res.status(httpStatus >= 400 && httpStatus < 500 ? 422 : 500).json({
+      error: apiMessage ?? "Failed to process receipt. Please try a clearer photo.",
+    });
   }
 });
 
