@@ -90,13 +90,9 @@ export default function ScanReceiptScreen() {
         });
       }
 
-      if (result.canceled || !result.assets?.[0]) {
-        console.log("[scan] picker cancelled or no assets");
-        return;
-      }
+      if (result.canceled || !result.assets?.[0]) return;
 
       const asset = result.assets[0];
-      console.log("[scan] got asset:", asset.uri, "type:", asset.type, "width:", asset.width, "height:", asset.height);
       setImage(asset.uri);
       setParsed(null);
       setErrorMsg(null);
@@ -104,7 +100,6 @@ export default function ScanReceiptScreen() {
 
       // Read the file as base64 after getting the URI (avoids large base64 through bridge)
       let base64: string;
-      console.log("[scan] reading file as base64, platform:", Platform.OS);
       if (Platform.OS === "web") {
         const resp = await fetch(asset.uri);
         const blob = await resp.blob();
@@ -120,10 +115,8 @@ export default function ScanReceiptScreen() {
         });
       }
 
-      console.log("[scan] base64 length:", base64.length, "sending to server...");
       await processReceipt(base64, "image/jpeg");
     } catch (err: unknown) {
-      console.error("[scan] pickImage error:", err);
       const msg = err instanceof Error ? err.message : "Something went wrong. Please try again.";
       setErrorMsg(msg);
       setScanStatus("error");
@@ -132,12 +125,10 @@ export default function ScanReceiptScreen() {
 
   const processReceipt = async (base64: string, mimeType: string) => {
     try {
-      console.log("[scan] calling /receipts/process...");
       const data = await apiFetch("/receipts/process", {
         method: "POST",
         body: JSON.stringify({ imageBase64: base64, mimeType }),
       });
-      console.log("[scan] API response:", JSON.stringify(data));
       const today = new Date().toISOString().split("T")[0];
 
       setParsed({
