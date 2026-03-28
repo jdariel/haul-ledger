@@ -70,7 +70,6 @@ export default function LoadEvaluatorScreen() {
   const [emptyMiles, setEmptyMiles] = useState("");
   const [fuelPrice, setFuelPrice] = useState("");
   const [mpgInput, setMpgInput] = useState("6"); // default 6 MPG for diesel trucks
-  const [monthlyMiles, setMonthlyMiles] = useState("");
 
   // Pre-fill from historical data when it loads; never overwrite a user edit
   useEffect(() => {
@@ -80,9 +79,6 @@ export default function LoadEvaluatorScreen() {
     if (analysis?.truckMpg > 0) {
       // Always sync MPG from fuel log history (more accurate than the default)
       setMpgInput(analysis.truckMpg.toFixed(2));
-    }
-    if (analysis?.milesPerMonth > 0 && !monthlyMiles) {
-      setMonthlyMiles(String(Math.round(analysis.milesPerMonth)));
     }
   }, [analysis]);
 
@@ -95,8 +91,8 @@ export default function LoadEvaluatorScreen() {
     const mpg = parseFloat(mpgInput) || 6;
     const fixedMonthly = analysis?.fixedMonthlyCost ?? 0;
     const perMileFixed = analysis?.perMileFixed ?? 0;
-    // Use user-entered monthly miles; fall back to 10,000 if none set
-    const milesPerMonth = parseFloat(monthlyMiles) || 10000;
+    // Use saved target monthly miles, fall back to trip history, then default to 10,000
+    const milesPerMonth = analysis?.targetMonthlyMiles ?? analysis?.milesPerMonth ?? 10000;
 
     if (rate <= 0 || miles <= 0 || fuelPerGal <= 0) return null;
 
@@ -124,7 +120,7 @@ export default function LoadEvaluatorScreen() {
       hasMpg: mpg > 0,
       hasFixed: fixedMonthly > 0,
     };
-  }, [loadRate, loadMiles, emptyMiles, fuelPrice, mpgInput, monthlyMiles, analysis]);
+  }, [loadRate, loadMiles, emptyMiles, fuelPrice, mpgInput, analysis]);
 
   const netColor = calc
     ? calc.netProfit > 0
@@ -304,32 +300,6 @@ export default function LoadEvaluatorScreen() {
               </View>
             </View>
 
-            <View style={[s.divider, { backgroundColor: C.separator }]} />
-
-            {/* Monthly miles — used to prorate fixed costs from Cost Setup */}
-            <View style={s.inputRow}>
-              <View style={[s.inputIconBox, { backgroundColor: "#8b5cf620" }]}>
-                <Ionicons name="trending-up-outline" size={18} color="#8b5cf6" />
-              </View>
-              <View style={s.inputLabelCol}>
-                <Text style={[s.inputLabel, { color: C.textSecondary }]}>Monthly Miles</Text>
-                <Text style={[s.inputHint, { color: C.textMuted }]}>
-                  {analysis?.milesPerMonth > 0
-                    ? `From trip history: ~${Math.round(analysis.milesPerMonth).toLocaleString()} mi/mo`
-                    : "Used to spread fixed costs per load"}
-                </Text>
-              </View>
-              <View style={[s.inputBox, { borderColor: C.separator, backgroundColor: C.background }]}>
-                <TextInput
-                  style={[s.input, { color: C.text }]}
-                  placeholder="10,000"
-                  placeholderTextColor={C.textMuted}
-                  value={monthlyMiles}
-                  onChangeText={setMonthlyMiles}
-                  keyboardType="numeric"
-                />
-              </View>
-            </View>
           </View>
 
           {/* ── Results ── */}
@@ -392,7 +362,7 @@ export default function LoadEvaluatorScreen() {
                   <ResultRow
                     label="Fixed Costs (pro-rated)"
                     value={`-${fmtUSD(calc.fixedAllocation)}`}
-                    sub={`$${fmtNum(analysis?.fixedMonthlyCost ?? 0, 0)}/mo ÷ ${(parseFloat(monthlyMiles) || 10000).toLocaleString()} mi/mo × ${fmtNum(calc.miles)} mi`}
+                    sub={`$${fmtNum(analysis?.fixedMonthlyCost ?? 0, 0)}/mo ÷ ${(analysis?.targetMonthlyMiles ?? analysis?.milesPerMonth ?? 10000).toLocaleString()} mi/mo × ${fmtNum(calc.miles)} mi`}
                     color="#ef4444"
                     C={C}
                   />

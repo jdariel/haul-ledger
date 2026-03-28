@@ -12,7 +12,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import {
   useCostSettings, useCostAnalysis,
   useCreateCostSetting, useUpdateCostSetting, useDeleteCostSetting,
-  useLogCostToExpense, useLogAllCostsToExpenses,
+  useLogCostToExpense, useLogAllCostsToExpenses, useUpdateUserSettings,
 } from "@/hooks/useApi";
 
 type Frequency = "monthly" | "weekly" | "annual" | "per_mile";
@@ -89,13 +89,18 @@ export default function CostSetupScreen() {
   const [frequency, setFrequency] = useState<Frequency>("monthly");
   const [showPresets, setShowPresets] = useState(false);
   const [monthlyMiles, setMonthlyMiles] = useState("");
+  const [monthlyMilesSaved, setMonthlyMilesSaved] = useState(false);
 
   const { data: items, isLoading: itemsLoading, refetch: refetchItems } = useCostSettings();
   const { data: analysis, isLoading: analysisLoading, refetch: refetchAnalysis } = useCostAnalysis();
 
   useEffect(() => {
-    if (analysis?.milesPerMonth > 0 && !monthlyMiles) {
-      setMonthlyMiles(String(Math.round(analysis.milesPerMonth)));
+    if (!monthlyMiles) {
+      if (analysis?.targetMonthlyMiles != null) {
+        setMonthlyMiles(String(analysis.targetMonthlyMiles));
+      } else if (analysis?.milesPerMonth > 0) {
+        setMonthlyMiles(String(Math.round(analysis.milesPerMonth)));
+      }
     }
   }, [analysis]);
 
@@ -104,6 +109,19 @@ export default function CostSetupScreen() {
   const deleteCost = useDeleteCostSetting();
   const logOne = useLogCostToExpense();
   const logAll = useLogAllCostsToExpenses();
+  const updateSettings = useUpdateUserSettings();
+
+  const handleSaveMonthlyMiles = async () => {
+    const miles = parseFloat(monthlyMiles);
+    if (isNaN(miles) || miles < 0) return;
+    try {
+      await updateSettings.mutateAsync({ targetMonthlyMiles: Math.round(miles) });
+      setMonthlyMilesSaved(true);
+      setTimeout(() => setMonthlyMilesSaved(false), 2000);
+    } catch {
+      // silent — analysis still works with local value
+    }
+  };
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -425,7 +443,11 @@ export default function CostSetupScreen() {
                     <View style={{ flex: 1 }}>
                       <Text style={[s.cpmMilesLabel, { color: C.textSecondary }]}>Monthly Miles</Text>
                       <Text style={[s.cpmMilesHint, { color: C.textMuted }]}>
-                        {analysis?.milesPerMonth > 0 ? "From your trip log" : "Enter your typical monthly miles"}
+                        {analysis?.targetMonthlyMiles != null
+                          ? "Your saved target"
+                          : analysis?.milesPerMonth > 0
+                          ? "From your trip log"
+                          : "Enter your typical monthly miles"}
                       </Text>
                     </View>
                     <View style={[s.cpmMilesBox, { borderColor: C.separator, backgroundColor: C.background }]}>
@@ -434,10 +456,24 @@ export default function CostSetupScreen() {
                         placeholder="e.g. 10000"
                         placeholderTextColor={C.textMuted}
                         value={monthlyMiles}
-                        onChangeText={setMonthlyMiles}
+                        onChangeText={(v) => { setMonthlyMiles(v); setMonthlyMilesSaved(false); }}
                         keyboardType="numeric"
+                        onSubmitEditing={handleSaveMonthlyMiles}
+                        returnKeyType="done"
                       />
                     </View>
+                    <TouchableOpacity
+                      onPress={handleSaveMonthlyMiles}
+                      disabled={updateSettings.isPending || monthlyMilesSaved}
+                      style={[
+                        s.cpmSaveBtn,
+                        { backgroundColor: monthlyMilesSaved ? "#22c55e" : C.primary },
+                      ]}
+                    >
+                      {updateSettings.isPending
+                        ? <ActivityIndicator size="small" color="#fff" />
+                        : <Ionicons name={monthlyMilesSaved ? "checkmark" : "save-outline"} size={16} color="#fff" />}
+                    </TouchableOpacity>
                   </View>
 
                   <View style={[s.cpmDivider, { backgroundColor: C.separator }]} />
@@ -658,8 +694,9 @@ function makeStyles(C: typeof Colors.light) {
     cpmMilesRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingBottom: 4 },
     cpmMilesLabel: { fontSize: 14, fontWeight: "600" },
     cpmMilesHint: { fontSize: 11, marginTop: 1 },
-    cpmMilesBox: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minWidth: 110 },
+    cpmMilesBox: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minWidth: 100 },
     cpmMilesInput: { fontSize: 16, fontWeight: "700", textAlign: "right" },
+    cpmSaveBtn: { width: 36, height: 36, borderRadius: 10, justifyContent: "center", alignItems: "center" },
     cpmDivider: { height: 1, marginVertical: 6 },
     cpmRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 4 },
     cpmLabel: { fontSize: 13 },

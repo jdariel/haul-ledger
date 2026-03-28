@@ -296,6 +296,30 @@ router.patch("/profile", requireAuth, async (req, res) => {
   }
 });
 
+// PATCH /api/auth/settings — update user preferences (targetMonthlyMiles, etc.)
+router.patch("/settings", requireAuth, async (req, res) => {
+  const { targetMonthlyMiles } = req.body as { targetMonthlyMiles?: number | null };
+  const updates: Record<string, any> = {};
+  if (targetMonthlyMiles !== undefined) {
+    if (targetMonthlyMiles !== null && (typeof targetMonthlyMiles !== "number" || targetMonthlyMiles < 0)) {
+      res.status(400).json({ error: "targetMonthlyMiles must be a non-negative number or null." });
+      return;
+    }
+    updates.targetMonthlyMiles = targetMonthlyMiles === null ? null : Math.round(targetMonthlyMiles);
+  }
+  if (Object.keys(updates).length === 0) {
+    res.status(400).json({ error: "No valid fields to update." });
+    return;
+  }
+  try {
+    await db.update(usersTable).set(updates).where(eq(usersTable.id, req.user!.id));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("settings update error:", err);
+    res.status(500).json({ error: "Failed to update settings." });
+  }
+});
+
 // PATCH /api/auth/push-token — register or clear the device's Expo push token
 router.patch("/push-token", requireAuth, async (req, res) => {
   const { token } = req.body as { token?: string | null };

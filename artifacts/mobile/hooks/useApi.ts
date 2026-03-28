@@ -493,5 +493,14 @@ export function useRemoveFleetMember() {
   });
 }
 
+export function useUpdateUserSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { targetMonthlyMiles?: number | null }) =>
+      apiFetch("/auth/settings", { method: "PATCH", body: JSON.stringify(data) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["cost-analysis"] }),
+  });
+}
+
 // Used for non-hook contexts (e.g. scan receipt screen)
 export { apiFetch };

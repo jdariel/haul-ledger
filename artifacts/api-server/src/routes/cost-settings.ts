@@ -2,7 +2,7 @@ import { Router } from "express";
 import { eq, and, avg, sum, desc } from "drizzle-orm";
 import {
   db, costSettingsTable, fuelEntriesTable, tripsTable,
-  expensesTable, incomeTable,
+  expensesTable, incomeTable, usersTable,
 } from "@workspace/db";
 import { requireAuth } from "../middleware/auth";
 
@@ -172,6 +172,11 @@ router.get("/analysis", requireAuth, async (req, res) => {
   try {
     const uid = req.user!.id;
 
+    const [userRow] = await db
+      .select({ targetMonthlyMiles: usersTable.targetMonthlyMiles })
+      .from(usersTable)
+      .where(eq(usersTable.id, uid));
+
     const [fuelAgg] = await db
       .select({
         avgPricePerGallon: avg(fuelEntriesTable.pricePerGallon),
@@ -264,6 +269,7 @@ router.get("/analysis", requireAuth, async (req, res) => {
       netPerMile,
       breakEvenMilesPerMonth,
       milesPerMonth: Math.round(milesPerMonth),
+      targetMonthlyMiles: userRow?.targetMonthlyMiles ?? null,
     });
   } catch (err) {
     console.error("Analysis error:", err);
