@@ -13,6 +13,8 @@ import { KeyboardAwareScrollViewCompat as KeyboardAwareScrollView } from "@/comp
 import { Colors } from "@/constants/colors";
 import { FormInput } from "@/components/FormInput";
 import { useColorScheme } from "@/hooks/useColorScheme";
+import { PasswordRequirements } from "@/components/PasswordRequirements";
+import { validatePassword, isPasswordStrong } from "@/lib/passwordValidation";
 import { apiFetch } from "@/hooks/useApi";
 
 export default function ChangePasswordScreen() {
@@ -38,9 +40,8 @@ export default function ChangePasswordScreen() {
     if (!currentPassword.trim()) {
       return setErrorMessage("Please enter your current password.");
     }
-    if (newPassword.length < 8) {
-      return setErrorMessage("New password must be at least 8 characters.");
-    }
+    const pwErr = validatePassword(newPassword);
+    if (pwErr) return setErrorMessage(pwErr);
     if (newPassword !== confirmPassword) {
       return setErrorMessage("New passwords do not match.");
     }
@@ -90,7 +91,7 @@ export default function ChangePasswordScreen() {
 
         {/* Success banner */}
         {success && (
-          <View style={[s.banner, s.bannerSuccess, { backgroundColor: "#dcfce7", borderColor: "#86efac" }]}>
+          <View style={[s.banner, { backgroundColor: "#dcfce7", borderColor: "#86efac" }]}>
             <Ionicons name="checkmark-circle" size={20} color="#16a34a" />
             <Text style={[s.bannerText, { color: "#15803d" }]}>
               Password updated successfully! Taking you back…
@@ -100,7 +101,7 @@ export default function ChangePasswordScreen() {
 
         {/* Error banner */}
         {errorMessage && !success && (
-          <View style={[s.banner, s.bannerError, { backgroundColor: "#fef2f2", borderColor: "#fca5a5" }]}>
+          <View style={[s.banner, { backgroundColor: "#fef2f2", borderColor: "#fca5a5" }]}>
             <Ionicons name="alert-circle" size={20} color="#dc2626" />
             <Text style={[s.bannerText, { color: "#dc2626" }]}>{errorMessage}</Text>
           </View>
@@ -151,36 +152,30 @@ export default function ChangePasswordScreen() {
           />
         </View>
 
-        {/* Strength hint */}
-        {newPassword.length > 0 && (
-          <View style={[s.hint, { backgroundColor: C.card, borderColor: C.separator }]}>
+        {/* Live password requirements */}
+        {newPassword.length > 0 && <PasswordRequirements password={newPassword} />}
+
+        {/* Confirm match hint */}
+        {confirmPassword.length > 0 && (
+          <View style={[s.matchRow, { backgroundColor: C.card, borderColor: C.separator }]}>
             <Ionicons
-              name={newPassword.length >= 8 ? "checkmark-circle" : "alert-circle-outline"}
+              name={newPassword === confirmPassword ? "checkmark-circle" : "close-circle-outline"}
               size={15}
-              color={newPassword.length >= 8 ? C.green : C.orange}
+              color={newPassword === confirmPassword ? "#16a34a" : "#ef4444"}
             />
-            <Text style={[s.hintText, { color: newPassword.length >= 8 ? C.green : C.orange }]}>
-              {newPassword.length >= 8 ? "Length OK" : `${8 - newPassword.length} more character${8 - newPassword.length !== 1 ? "s" : ""} needed`}
+            <Text style={[s.matchText, { color: newPassword === confirmPassword ? "#16a34a" : "#ef4444" }]}>
+              {newPassword === confirmPassword ? "Passwords match" : "Passwords don't match"}
             </Text>
-            {confirmPassword.length > 0 && (
-              <>
-                <View style={s.hintSep} />
-                <Ionicons
-                  name={newPassword === confirmPassword ? "checkmark-circle" : "close-circle-outline"}
-                  size={15}
-                  color={newPassword === confirmPassword ? C.green : "#ef4444"}
-                />
-                <Text style={[s.hintText, { color: newPassword === confirmPassword ? C.green : "#ef4444" }]}>
-                  {newPassword === confirmPassword ? "Passwords match" : "Passwords don't match"}
-                </Text>
-              </>
-            )}
           </View>
         )}
 
         {/* Submit */}
         <TouchableOpacity
-          style={[s.saveBtn, { backgroundColor: success ? "#16a34a" : C.primary }, (loading || success) && { opacity: 0.85 }]}
+          style={[
+            s.saveBtn,
+            { backgroundColor: success ? "#16a34a" : C.primary },
+            (loading || success) && { opacity: 0.85 },
+          ]}
           onPress={handleSave}
           disabled={loading || success}
           activeOpacity={0.85}
@@ -206,7 +201,7 @@ export default function ChangePasswordScreen() {
 
 const s = StyleSheet.create({
   root: { flex: 1 },
-  scroll: { paddingHorizontal: 16, gap: 16 },
+  scroll: { paddingHorizontal: 16, gap: 14 },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -233,8 +228,6 @@ const s = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
   },
-  bannerSuccess: {},
-  bannerError: {},
   bannerText: { fontSize: 14, fontWeight: "500", flex: 1, lineHeight: 20 },
   card: {
     borderRadius: 16,
@@ -243,19 +236,17 @@ const s = StyleSheet.create({
     paddingVertical: 4,
     gap: 4,
   },
-  divider: { height: 1, marginLeft: 0 },
+  divider: { height: 1 },
   eyeBtn: { paddingLeft: 8 },
-  hint: {
+  matchRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    padding: 12,
-    borderRadius: 12,
+    padding: 10,
+    borderRadius: 10,
     borderWidth: 1,
-    flexWrap: "wrap",
   },
-  hintText: { fontSize: 13, fontWeight: "500" },
-  hintSep: { width: 12 },
+  matchText: { fontSize: 13, fontWeight: "500" },
   saveBtn: {
     flexDirection: "row",
     alignItems: "center",

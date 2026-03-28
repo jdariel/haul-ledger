@@ -17,6 +17,18 @@ const router = Router();
 const { jwtSecret: JWT_SECRET, resendApiKey } = config;
 const JWT_EXPIRES = "30d";
 const MIN_PASSWORD_LENGTH = 8;
+
+function validatePasswordStrength(password: string): string | null {
+  if (typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH) {
+    return `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
+  }
+  if (!/[A-Z]/.test(password)) return "Password must contain at least one uppercase letter (A–Z).";
+  if (!/[a-z]/.test(password)) return "Password must contain at least one lowercase letter (a–z).";
+  if (!/[0-9]/.test(password)) return "Password must contain at least one number (0–9).";
+  if (!/[^A-Za-z0-9]/.test(password)) return "Password must contain at least one special character (!@#$…).";
+  return null;
+}
+
 const FROM_EMAIL = "HaulLedger <onboarding@resend.dev>";
 
 function getResend() {
@@ -81,9 +93,8 @@ router.post("/register", authLimiter, async (req, res) => {
     if (!validateEmail(email)) {
       return res.status(400).json({ error: "Please enter a valid email address." });
     }
-    if (!password || typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH) {
-      return res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.` });
-    }
+    const pwErr = validatePasswordStrength(password);
+    if (pwErr) return res.status(400).json({ error: pwErr });
 
     const existing = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, email));
     if (existing.length > 0) {
@@ -237,9 +248,8 @@ router.post("/reset-password", authLimiter, async (req, res) => {
     if (!resetToken || !newPassword) {
       return res.status(400).json({ error: "Reset token and new password are required." });
     }
-    if (typeof newPassword !== "string" || newPassword.length < MIN_PASSWORD_LENGTH) {
-      return res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.` });
-    }
+    const pwErrReset = validatePasswordStrength(newPassword);
+    if (pwErrReset) return res.status(400).json({ error: pwErrReset });
 
     const entry = resetStore.get(resetToken);
     if (!entry || entry.expiresAt < new Date()) {
@@ -316,9 +326,8 @@ router.patch("/change-password", requireAuth, authLimiter, async (req, res) => {
     if (!currentPassword || !newPassword) {
       return res.status(400).json({ error: "Current and new passwords are required." });
     }
-    if (typeof newPassword !== "string" || newPassword.length < MIN_PASSWORD_LENGTH) {
-      return res.status(400).json({ error: `New password must be at least ${MIN_PASSWORD_LENGTH} characters.` });
-    }
+    const pwErrChange = validatePasswordStrength(newPassword);
+    if (pwErrChange) return res.status(400).json({ error: pwErrChange });
     if (currentPassword === newPassword) {
       return res.status(400).json({ error: "New password must be different from your current password." });
     }

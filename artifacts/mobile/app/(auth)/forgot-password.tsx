@@ -16,6 +16,8 @@ import { router } from "expo-router";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { Colors } from "@/constants/colors";
 import { API_BASE_URL } from "@/constants/api";
+import { PasswordRequirements } from "@/components/PasswordRequirements";
+import { validatePassword } from "@/lib/passwordValidation";
 
 type Step = "email" | "otp" | "password" | "done";
 
@@ -119,10 +121,8 @@ export default function ForgotPasswordScreen() {
       setError("Please fill in both password fields.");
       return;
     }
-    if (newPassword.length < 8) {
-      setError("Password must be at least 8 characters.");
-      return;
-    }
+    const pwErr = validatePassword(newPassword);
+    if (pwErr) { setError(pwErr); return; }
     if (newPassword !== confirmPassword) {
       setError("Passwords don't match.");
       return;
@@ -337,6 +337,9 @@ export default function ForgotPasswordScreen() {
                   </TouchableOpacity>
                 </View>
               </View>
+
+              {/* Live password requirements */}
+              {newPassword.length > 0 && <PasswordRequirements password={newPassword} />}
 
               <View style={s.fieldGroup}>
                 <Text style={[s.fieldLabel, { color: C.textSecondary }]}>Confirm Password</Text>
