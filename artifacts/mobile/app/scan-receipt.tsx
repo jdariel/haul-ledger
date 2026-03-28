@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system/legacy";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -59,61 +60,84 @@ export default function ScanReceiptScreen() {
   }, []);
 
   const pickImage = async (fromCamera: boolean) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
 
-    let result: ImagePicker.ImagePickerResult;
+      let result: ImagePicker.ImagePickerResult;
 
-    if (fromCamera) {
-      if (!cameraPermGranted.current) {
-        const { status } = await ImagePicker.requestCameraPermissionsAsync();
-        if (status !== "granted") {
-          Alert.alert("Permission needed", "Camera access is required to scan receipts.");
-          return;
+      if (fromCamera) {
+        if (!cameraPermGranted.current) {
+          const { status } = await ImagePicker.requestCameraPermissionsAsync();
+          if (status !== "granted") {
+            setErrorMsg("Camera permission is required to scan receipts. Please enable it in Settings.");
+            setScanStatus("error");
+            return;
+          }
+          cameraPermGranted.current = true;
         }
-        cameraPermGranted.current = true;
+        result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ["images"],
+          quality: 0.7,  // quality < 1 forces JPEG output on iOS
+          allowsEditing: false,
+          exif: false,
+        });
+      } else {
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ["images"],
+          quality: 0.7,
+          allowsEditing: false,
+          exif: false,
+        });
       }
-      result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ["images"],
-        // base64 gives us the image data directly — no FileSystem or manipulator needed
-        base64: true,
-        quality: 0.6,
-        allowsEditing: false,
-        exif: false,
-      });
-    } else {
-      result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        base64: true,
-        quality: 0.6,
-        allowsEditing: false,
-        exif: false,
-      });
-    }
 
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
-      setImage(asset.uri);
-      setParsed(null);
-      setErrorMsg(null);
-
-      const base64 = asset.base64;
-      if (!base64) {
-        setErrorMsg("Could not read image data. Please try again.");
-        setScanStatus("error");
+      if (result.canceled || !result.assets?.[0]) {
+        console.log("[scan] picker cancelled or no assets");
         return;
       }
 
+      const asset = result.assets[0];
+      console.log("[scan] got asset:", asset.uri, "type:", asset.type, "width:", asset.width, "height:", asset.height);
+      setImage(asset.uri);
+      setParsed(null);
+      setErrorMsg(null);
+      setScanStatus("analyzing");
+
+      // Read the file as base64 after getting the URI (avoids large base64 through bridge)
+      let base64: string;
+      console.log("[scan] reading file as base64, platform:", Platform.OS);
+      if (Platform.OS === "web") {
+        const resp = await fetch(asset.uri);
+        const blob = await resp.blob();
+        base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve((reader.result as string).split(",")[1] ?? "");
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } else {
+        base64 = await FileSystem.readAsStringAsync(asset.uri, {
+          encoding: "base64" as never,
+        });
+      }
+
+      console.log("[scan] base64 length:", base64.length, "sending to server...");
       await processReceipt(base64, "image/jpeg");
+    } catch (err: unknown) {
+      console.error("[scan] pickImage error:", err);
+      const msg = err instanceof Error ? err.message : "Something went wrong. Please try again.";
+      setErrorMsg(msg);
+      setScanStatus("error");
     }
   };
 
   const processReceipt = async (base64: string, mimeType: string) => {
     try {
-      setScanStatus("analyzing");
+      console.log("[scan] calling /receipts/process...");
       const data = await apiFetch("/receipts/process", {
         method: "POST",
         body: JSON.stringify({ imageBase64: base64, mimeType }),
       });
+      console.log("[scan] API response:", JSON.stringify(data));
       const today = new Date().toISOString().split("T")[0];
 
       setParsed({
