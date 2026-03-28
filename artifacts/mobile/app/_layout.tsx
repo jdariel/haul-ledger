@@ -49,6 +49,7 @@ function RootLayoutNav() {
   const didInitNav = useRef(false);
 
   const [isLocked, setIsLocked] = useState(false);
+  const isLockedRef = useRef(false);
   const didApplyStartLock = useRef(false);
   const appState = useRef<AppStateStatus>(AppState.currentState);
   const wentToBackground = useRef(false);
@@ -69,6 +70,12 @@ function RootLayoutNav() {
       });
   }, []);
 
+  // Keep a ref in sync with isLocked so the AppState listener can read
+  // the current value without being re-registered every time isLocked changes.
+  useEffect(() => {
+    isLockedRef.current = isLocked;
+  }, [isLocked]);
+
   // Biometric lock: lock on cold start (app launched fresh while setting is on)
   useEffect(() => {
     if (!settingsLoaded || isLoading || didApplyStartLock.current) return;
@@ -82,13 +89,15 @@ function RootLayoutNav() {
   useEffect(() => {
     const sub = AppState.addEventListener("change", (nextState: AppStateStatus) => {
       if (appState.current === "active" && nextState !== "active") {
-        // App is going to background/inactive
-        if (settings.biometricLock && user) {
+        // Only mark as went-to-background if the lock screen is NOT already showing.
+        // The biometric / passcode prompt itself transitions the app to inactive then
+        // back to active — we must not treat that as a new background event.
+        if (settings.biometricLock && user && !isLockedRef.current) {
           wentToBackground.current = true;
         }
       }
       if (nextState === "active" && wentToBackground.current) {
-        // App is returning to foreground
+        // App is genuinely returning from background — lock it.
         wentToBackground.current = false;
         if (settings.biometricLock && user) {
           setIsLocked(true);
