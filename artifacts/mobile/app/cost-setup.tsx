@@ -8,6 +8,7 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "@/constants/colors";
 import { useColorScheme } from "@/hooks/useColorScheme";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import {
   useCostSettings, useCostAnalysis,
   useCreateCostSetting, useUpdateCostSetting, useDeleteCostSetting,
@@ -82,6 +83,7 @@ export default function CostSetupScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; label: string } | null>(null);
   const [label, setLabel] = useState("");
   const [amount, setAmount] = useState("");
   const [frequency, setFrequency] = useState<Frequency>("monthly");
@@ -192,15 +194,7 @@ export default function CostSetupScreen() {
   };
 
   const handleDelete = (id: number, lbl: string) => {
-    Alert.alert("Delete", `Remove "${lbl}"?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete", style: "destructive",
-        onPress: async () => {
-          try { await deleteCost.mutateAsync(id); } catch (e: any) { Alert.alert("Error", e.message); }
-        },
-      },
-    ]);
+    setDeleteTarget({ id, label: lbl });
   };
 
   const isLoading = itemsLoading || analysisLoading;
@@ -598,6 +592,19 @@ export default function CostSetupScreen() {
           </ScrollView>
         </View>
       </Modal>
+
+      <ConfirmDialog
+        visible={deleteTarget !== null}
+        title="Delete Cost"
+        message={deleteTarget ? `Remove "${deleteTarget.label}"?` : ""}
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          const id = deleteTarget.id;
+          setDeleteTarget(null);
+          try { await deleteCost.mutateAsync(id); } catch (e: any) { Alert.alert("Error", (e as any).message); }
+        }}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </View>
   );
 }

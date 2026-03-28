@@ -8,6 +8,7 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "@/constants/colors";
 import { useColorScheme } from "@/hooks/useColorScheme";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import {
   useFleet, useFleetOverview, useCreateFleet, useJoinFleet,
   useLeaveFleet, useDeleteFleet, useRemoveFleetMember,
@@ -48,6 +49,12 @@ export default function FleetScreen() {
   const [tab, setTab] = useState<Tab>("fleet");
   const [fleetName, setFleetName] = useState("");
   const [inviteInput, setInviteInput] = useState("");
+  const [confirmState, setConfirmState] = useState<{
+    title: string;
+    message: string;
+    confirmText: string;
+    onConfirm: () => Promise<void>;
+  } | null>(null);
   const [mode, setMode] = useState<"none" | "create" | "join">("none");
   const [refreshing, setRefreshing] = useState(false);
 
@@ -96,51 +103,47 @@ export default function FleetScreen() {
   };
 
   const handleLeave = () => {
-    Alert.alert("Leave Fleet", "Are you sure you want to leave this fleet?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Leave", style: "destructive",
-        onPress: async () => {
-          try { await leaveFleet.mutateAsync(); } catch (e: any) { Alert.alert("Error", e.message); }
-        },
+    setConfirmState({
+      title: "Leave Fleet",
+      message: "Are you sure you want to leave this fleet?",
+      confirmText: "Leave",
+      onConfirm: async () => {
+        try { await leaveFleet.mutateAsync(); } catch (e: any) { Alert.alert("Error", e.message); }
       },
-    ]);
+    });
   };
 
   const handleDelete = () => {
-    Alert.alert("Delete Fleet", "This will remove all members and cannot be undone.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete", style: "destructive",
-        onPress: async () => {
-          try { await deleteFleet.mutateAsync(); } catch (e: any) { Alert.alert("Error", e.message); }
-        },
+    setConfirmState({
+      title: "Delete Fleet",
+      message: "This will remove all members and cannot be undone.",
+      confirmText: "Delete",
+      onConfirm: async () => {
+        try { await deleteFleet.mutateAsync(); } catch (e: any) { Alert.alert("Error", e.message); }
       },
-    ]);
+    });
   };
 
   const handleRemove = (userId: number, name: string) => {
-    Alert.alert("Remove Driver", `Remove ${name} from the fleet?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Remove", style: "destructive",
-        onPress: async () => {
-          try { await removeMember.mutateAsync(userId); } catch (e: any) { Alert.alert("Error", e.message); }
-        },
+    setConfirmState({
+      title: "Remove Driver",
+      message: `Remove ${name} from the fleet?`,
+      confirmText: "Remove",
+      onConfirm: async () => {
+        try { await removeMember.mutateAsync(userId); } catch (e: any) { Alert.alert("Error", e.message); }
       },
-    ]);
+    });
   };
 
   const handleDeleteAsset = (id: number, name: string) => {
-    Alert.alert("Delete Asset", `Delete "${name}"?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete", style: "destructive",
-        onPress: async () => {
-          try { await deleteAsset.mutateAsync(id); } catch (e: any) { Alert.alert("Error", e.message); }
-        },
+    setConfirmState({
+      title: "Delete Asset",
+      message: `Delete "${name}"?`,
+      confirmText: "Delete",
+      onConfirm: async () => {
+        try { await deleteAsset.mutateAsync(id); } catch (e: any) { Alert.alert("Error", e.message); }
       },
-    ]);
+    });
   };
 
   const isLoading = fleetLoading || assetsLoading;
@@ -452,6 +455,19 @@ export default function FleetScreen() {
           </>
         )}
       </ScrollView>
+
+      <ConfirmDialog
+        visible={confirmState !== null}
+        title={confirmState?.title ?? ""}
+        message={confirmState?.message ?? ""}
+        confirmText={confirmState?.confirmText ?? "Confirm"}
+        onConfirm={async () => {
+          const action = confirmState?.onConfirm;
+          setConfirmState(null);
+          if (action) await action();
+        }}
+        onCancel={() => setConfirmState(null)}
+      />
     </View>
   );
 }
