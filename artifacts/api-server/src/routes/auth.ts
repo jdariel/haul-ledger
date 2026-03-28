@@ -328,7 +328,7 @@ router.patch("/change-password", requireAuth, authLimiter, async (req, res) => {
 
     const valid = await bcrypt.compare(currentPassword, user.passwordHash);
     if (!valid) {
-      return res.status(401).json({ error: "Current password is incorrect." });
+      return res.status(400).json({ error: "Current password is incorrect." });
     }
 
     const newHash = await bcrypt.hash(newPassword, 12);
