@@ -191,7 +191,7 @@ router.get("/analysis", requireAuth, async (req, res) => {
     const totalFuelCost = parseFloat(fuelAgg?.totalFuelCost ?? "0") || 0;
 
     const tripRows = await db
-      .select({ loadedMiles: tripsTable.loadedMiles, emptyMiles: tripsTable.emptyMiles })
+      .select({ loadedMiles: tripsTable.loadedMiles, emptyMiles: tripsTable.emptyMiles, date: tripsTable.date })
       .from(tripsTable)
       .where(eq(tripsTable.userId, uid));
 
@@ -236,8 +236,28 @@ router.get("/analysis", requireAuth, async (req, res) => {
       }
     }
 
-    const monthsOfData = tripRows.length > 0 ? Math.max(1, totalMiles / 10000) : 1;
-    const milesPerMonth = totalMiles > 0 ? totalMiles / monthsOfData : 0;
+    // Compute real monthly average from actual trip dates
+    let monthsOfData = 1;
+    let milesPerMonth = 0;
+    let tripMonths = 0; // number of calendar months spanned by trip history
+
+    if (tripRows.length > 0 && totalMiles > 0) {
+      const dates = tripRows
+        .map(t => new Date(t.date))
+        .filter(d => !isNaN(d.getTime()));
+      if (dates.length > 0) {
+        const minTime = Math.min(...dates.map(d => d.getTime()));
+        const maxTime = Math.max(...dates.map(d => d.getTime()));
+        const minDate = new Date(minTime);
+        const maxDate = new Date(maxTime);
+        // Calendar months spanned, inclusive of both end months
+        const span = (maxDate.getFullYear() - minDate.getFullYear()) * 12
+          + (maxDate.getMonth() - minDate.getMonth()) + 1;
+        monthsOfData = Math.max(1, span);
+        tripMonths = monthsOfData;
+        milesPerMonth = totalMiles / monthsOfData;
+      }
+    }
 
     const variableCostPerMile = totalMiles > 0
       ? parseFloat(((totalExpenses) / totalMiles).toFixed(4))
@@ -269,6 +289,7 @@ router.get("/analysis", requireAuth, async (req, res) => {
       netPerMile,
       breakEvenMilesPerMonth,
       milesPerMonth: Math.round(milesPerMonth),
+      tripMonths,
       targetMonthlyMiles: userRow?.targetMonthlyMiles ?? null,
     });
   } catch (err) {

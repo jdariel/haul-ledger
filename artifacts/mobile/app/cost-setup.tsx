@@ -95,12 +95,15 @@ export default function CostSetupScreen() {
   const { data: analysis, isLoading: analysisLoading, refetch: refetchAnalysis } = useCostAnalysis();
 
   useEffect(() => {
-    if (!monthlyMiles) {
-      if (analysis?.targetMonthlyMiles != null) {
+    if (analysis?.targetMonthlyMiles != null) {
+      // Always sync the field from the saved target
+      if (!monthlyMiles || monthlyMilesSaved) {
         setMonthlyMiles(String(analysis.targetMonthlyMiles));
-      } else if (analysis?.milesPerMonth > 0) {
-        setMonthlyMiles(String(Math.round(analysis.milesPerMonth)));
       }
+    } else if (analysis?.milesPerMonth > 0) {
+      // No manual target — keep field in sync with real trip average
+      setMonthlyMiles(String(Math.round(analysis.milesPerMonth)));
+      setMonthlyMilesSaved(false);
     }
   }, [analysis]);
 
@@ -444,9 +447,9 @@ export default function CostSetupScreen() {
                       <Text style={[s.cpmMilesLabel, { color: C.textSecondary }]}>Monthly Miles</Text>
                       <Text style={[s.cpmMilesHint, { color: C.textMuted }]}>
                         {analysis?.targetMonthlyMiles != null
-                          ? "Your saved target"
+                          ? "Your saved target — tap save to update"
                           : analysis?.milesPerMonth > 0
-                          ? "From your trip log"
+                          ? `Avg from ${analysis.tripMonths ?? 1} month${(analysis.tripMonths ?? 1) !== 1 ? "s" : ""} of trips`
                           : "Enter your typical monthly miles"}
                       </Text>
                     </View>
