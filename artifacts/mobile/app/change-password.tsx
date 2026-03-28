@@ -3,7 +3,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   View,
-  Alert,
   Text,
   ActivityIndicator,
 } from "react-native";
@@ -26,23 +25,27 @@ export default function ChangePasswordScreen() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
 
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
   const handleSave = async () => {
+    setErrorMessage(null);
+
     if (!currentPassword.trim()) {
-      return Alert.alert("Validation", "Please enter your current password.");
+      return setErrorMessage("Please enter your current password.");
     }
     if (newPassword.length < 8) {
-      return Alert.alert("Validation", "New password must be at least 8 characters.");
+      return setErrorMessage("New password must be at least 8 characters.");
     }
     if (newPassword !== confirmPassword) {
-      return Alert.alert("Validation", "New passwords do not match.");
+      return setErrorMessage("New passwords do not match.");
     }
     if (currentPassword === newPassword) {
-      return Alert.alert("Validation", "New password must be different from your current one.");
+      return setErrorMessage("New password must be different from your current one.");
     }
 
     setLoading(true);
@@ -51,11 +54,10 @@ export default function ChangePasswordScreen() {
         method: "PATCH",
         body: JSON.stringify({ currentPassword, newPassword }),
       });
-      Alert.alert("Success", "Your password has been updated.", [
-        { text: "OK", onPress: () => router.back() },
-      ]);
+      setSuccess(true);
+      setTimeout(() => router.back(), 2000);
     } catch (e: unknown) {
-      Alert.alert("Error", e instanceof Error ? e.message : "Failed to change password.");
+      setErrorMessage(e instanceof Error ? e.message : "Failed to change password.");
     } finally {
       setLoading(false);
     }
@@ -86,12 +88,30 @@ export default function ChangePasswordScreen() {
           </Text>
         </View>
 
+        {/* Success banner */}
+        {success && (
+          <View style={[s.banner, s.bannerSuccess, { backgroundColor: "#dcfce7", borderColor: "#86efac" }]}>
+            <Ionicons name="checkmark-circle" size={20} color="#16a34a" />
+            <Text style={[s.bannerText, { color: "#15803d" }]}>
+              Password updated successfully! Taking you back…
+            </Text>
+          </View>
+        )}
+
+        {/* Error banner */}
+        {errorMessage && !success && (
+          <View style={[s.banner, s.bannerError, { backgroundColor: "#fef2f2", borderColor: "#fca5a5" }]}>
+            <Ionicons name="alert-circle" size={20} color="#dc2626" />
+            <Text style={[s.bannerText, { color: "#dc2626" }]}>{errorMessage}</Text>
+          </View>
+        )}
+
         {/* Form */}
         <View style={[s.card, { backgroundColor: C.card, borderColor: C.separator }]}>
           <FormInput
             label="Current Password"
             value={currentPassword}
-            onChangeText={setCurrentPassword}
+            onChangeText={(v) => { setCurrentPassword(v); setErrorMessage(null); }}
             placeholder="Enter your current password"
             secureTextEntry={!showCurrent}
             autoCapitalize="none"
@@ -105,7 +125,7 @@ export default function ChangePasswordScreen() {
           <FormInput
             label="New Password"
             value={newPassword}
-            onChangeText={setNewPassword}
+            onChangeText={(v) => { setNewPassword(v); setErrorMessage(null); }}
             placeholder="At least 8 characters"
             secureTextEntry={!showNew}
             autoCapitalize="none"
@@ -119,7 +139,7 @@ export default function ChangePasswordScreen() {
           <FormInput
             label="Confirm New Password"
             value={confirmPassword}
-            onChangeText={setConfirmPassword}
+            onChangeText={(v) => { setConfirmPassword(v); setErrorMessage(null); }}
             placeholder="Repeat new password"
             secureTextEntry={!showConfirm}
             autoCapitalize="none"
@@ -160,13 +180,18 @@ export default function ChangePasswordScreen() {
 
         {/* Submit */}
         <TouchableOpacity
-          style={[s.saveBtn, { backgroundColor: C.primary }, loading && { opacity: 0.7 }]}
+          style={[s.saveBtn, { backgroundColor: success ? "#16a34a" : C.primary }, (loading || success) && { opacity: 0.85 }]}
           onPress={handleSave}
-          disabled={loading}
+          disabled={loading || success}
           activeOpacity={0.85}
         >
           {loading ? (
             <ActivityIndicator color="#fff" />
+          ) : success ? (
+            <>
+              <Ionicons name="checkmark-circle" size={17} color="#fff" />
+              <Text style={s.saveBtnText}>Password Updated</Text>
+            </>
           ) : (
             <>
               <Ionicons name="lock-closed" size={17} color="#fff" />
@@ -200,6 +225,17 @@ const s = StyleSheet.create({
     alignItems: "center",
   },
   subtitle: { fontSize: 14, textAlign: "center", lineHeight: 20 },
+  banner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  bannerSuccess: {},
+  bannerError: {},
+  bannerText: { fontSize: 14, fontWeight: "500", flex: 1, lineHeight: 20 },
   card: {
     borderRadius: 16,
     borderWidth: 1,
