@@ -69,12 +69,17 @@ export default function LoadEvaluatorScreen() {
   const [loadMiles, setLoadMiles] = useState("");
   const [emptyMiles, setEmptyMiles] = useState("");
   const [fuelPrice, setFuelPrice] = useState("");
+  const [mpgInput, setMpgInput] = useState("6"); // default 6 MPG for diesel trucks
   const [monthlyMiles, setMonthlyMiles] = useState("");
 
-  // Pre-fill fuel price and monthly miles from historical data
+  // Pre-fill from historical data when it loads; never overwrite a user edit
   useEffect(() => {
     if (analysis?.avgFuelCostPerGallon > 0 && !fuelPrice) {
       setFuelPrice(analysis.avgFuelCostPerGallon.toFixed(3));
+    }
+    if (analysis?.truckMpg > 0) {
+      // Always sync MPG from fuel log history (more accurate than the default)
+      setMpgInput(analysis.truckMpg.toFixed(2));
     }
     if (analysis?.milesPerMonth > 0 && !monthlyMiles) {
       setMonthlyMiles(String(Math.round(analysis.milesPerMonth)));
@@ -87,7 +92,7 @@ export default function LoadEvaluatorScreen() {
     const empty = parseFloat(emptyMiles) || 0;
     const miles = loaded + empty;
     const fuelPerGal = parseFloat(fuelPrice) || 0;
-    const mpg = analysis?.truckMpg ?? 0;
+    const mpg = parseFloat(mpgInput) || 6;
     const fixedMonthly = analysis?.fixedMonthlyCost ?? 0;
     const perMileFixed = analysis?.perMileFixed ?? 0;
     // Use user-entered monthly miles; fall back to 10,000 if none set
@@ -95,7 +100,7 @@ export default function LoadEvaluatorScreen() {
 
     if (rate <= 0 || miles <= 0 || fuelPerGal <= 0) return null;
 
-    const fuelGallons = mpg > 0 ? miles / mpg : 0;
+    const fuelGallons = miles / mpg;
     const fuelCost = fuelGallons * fuelPerGal;
 
     const fixedAllocation = fixedMonthly > 0
@@ -119,7 +124,7 @@ export default function LoadEvaluatorScreen() {
       hasMpg: mpg > 0,
       hasFixed: fixedMonthly > 0,
     };
-  }, [loadRate, loadMiles, emptyMiles, fuelPrice, monthlyMiles, analysis]);
+  }, [loadRate, loadMiles, emptyMiles, fuelPrice, mpgInput, monthlyMiles, analysis]);
 
   const netColor = calc
     ? calc.netProfit > 0
@@ -135,7 +140,8 @@ export default function LoadEvaluatorScreen() {
       : "#ef4444"
     : C.text;
 
-  const hasMissingData = analysis && (!analysis.truckMpg || !analysis.fixedMonthlyCost);
+  // Only flag if cost setup is missing — MPG now defaults to 6 so it's always available
+  const hasMissingData = analysis && !analysis.fixedMonthlyCost;
 
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>
@@ -165,12 +171,7 @@ export default function LoadEvaluatorScreen() {
             >
               <Ionicons name="warning-outline" size={18} color="#f97316" />
               <Text style={[s.warningText, { color: "#f97316" }]}>
-                {!analysis?.truckMpg && !analysis?.fixedMonthlyCost
-                  ? "Add fuel logs & fixed costs in Cost Setup for a full breakdown."
-                  : !analysis?.truckMpg
-                  ? "Add fuel log entries so your MPG can be calculated."
-                  : "Add your fixed costs in Cost Setup for a full breakdown."}
-                {"  "}
+                Add your fixed costs (insurance, truck payment, etc.) in Cost Setup so they're included in every load calculation.{"  "}
                 <Text style={{ fontWeight: "800" }}>Tap to set up →</Text>
               </Text>
             </TouchableOpacity>
@@ -250,6 +251,33 @@ export default function LoadEvaluatorScreen() {
 
             <View style={[s.divider, { backgroundColor: C.separator }]} />
 
+            {/* Truck MPG */}
+            <View style={s.inputRow}>
+              <View style={[s.inputIconBox, { backgroundColor: "#06b6d420" }]}>
+                <Ionicons name="speedometer-outline" size={18} color="#06b6d4" />
+              </View>
+              <View style={s.inputLabelCol}>
+                <Text style={[s.inputLabel, { color: C.textSecondary }]}>Truck MPG</Text>
+                <Text style={[s.inputHint, { color: C.textMuted }]}>
+                  {analysis?.truckMpg > 0
+                    ? `Calculated from your fuel logs`
+                    : "Default 6 MPG — add fuel logs to auto-calculate"}
+                </Text>
+              </View>
+              <View style={[s.inputBox, { borderColor: C.separator, backgroundColor: C.background }]}>
+                <TextInput
+                  style={[s.input, { color: C.text }]}
+                  placeholder="6"
+                  placeholderTextColor={C.textMuted}
+                  value={mpgInput}
+                  onChangeText={setMpgInput}
+                  keyboardType="decimal-pad"
+                />
+              </View>
+            </View>
+
+            <View style={[s.divider, { backgroundColor: C.separator }]} />
+
             {/* Fuel price */}
             <View style={s.inputRow}>
               <View style={[s.inputIconBox, { backgroundColor: "#f9731620" }]}>
@@ -281,7 +309,7 @@ export default function LoadEvaluatorScreen() {
             {/* Monthly miles — used to prorate fixed costs from Cost Setup */}
             <View style={s.inputRow}>
               <View style={[s.inputIconBox, { backgroundColor: "#8b5cf620" }]}>
-                <Ionicons name="speedometer-outline" size={18} color="#8b5cf6" />
+                <Ionicons name="trending-up-outline" size={18} color="#8b5cf6" />
               </View>
               <View style={s.inputLabelCol}>
                 <Text style={[s.inputLabel, { color: C.textSecondary }]}>Monthly Miles</Text>
@@ -355,12 +383,8 @@ export default function LoadEvaluatorScreen() {
                 <ResultRow
                   label="Fuel Cost"
                   value={`-${fmtUSD(calc.fuelCost)}`}
-                  sub={
-                    analysis?.truckMpg > 0
-                      ? `${fmtNum(calc.fuelGallons, 1)} gal @ $${fuelPrice}/gal (${analysis.truckMpg} MPG)`
-                      : "Set up fuel log to calculate"
-                  }
-                  color={calc.fuelCost > 0 ? "#ef4444" : C.textSecondary}
+                  sub={`${fmtNum(calc.miles)} mi ÷ ${parseFloat(mpgInput) || 6} MPG = ${fmtNum(calc.fuelGallons, 1)} gal × $${fuelPrice}/gal`}
+                  color="#ef4444"
                   C={C}
                 />
 
