@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Alert, ActivityIndicator, TextInput, RefreshControl, Modal,
@@ -12,7 +12,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import {
   useCostSettings, useCostAnalysis,
   useCreateCostSetting, useUpdateCostSetting, useDeleteCostSetting,
-  useLogCostToExpense, useLogAllCostsToExpenses, useUpdateUserSettings,
+  useLogCostToExpense, useLogAllCostsToExpenses,
 } from "@/hooks/useApi";
 
 type Frequency = "monthly" | "weekly" | "annual" | "per_mile";
@@ -88,43 +88,14 @@ export default function CostSetupScreen() {
   const [amount, setAmount] = useState("");
   const [frequency, setFrequency] = useState<Frequency>("monthly");
   const [showPresets, setShowPresets] = useState(false);
-  const [monthlyMiles, setMonthlyMiles] = useState("");
-  const [monthlyMilesSaved, setMonthlyMilesSaved] = useState(false);
-
   const { data: items, isLoading: itemsLoading, refetch: refetchItems } = useCostSettings();
   const { data: analysis, isLoading: analysisLoading, refetch: refetchAnalysis } = useCostAnalysis();
-
-  useEffect(() => {
-    if (analysis?.targetMonthlyMiles != null) {
-      // Always sync the field from the saved target
-      if (!monthlyMiles || monthlyMilesSaved) {
-        setMonthlyMiles(String(analysis.targetMonthlyMiles));
-      }
-    } else if (analysis?.milesPerMonth > 0) {
-      // No manual target — keep field in sync with real trip average
-      setMonthlyMiles(String(Math.round(analysis.milesPerMonth)));
-      setMonthlyMilesSaved(false);
-    }
-  }, [analysis]);
 
   const createCost = useCreateCostSetting();
   const updateCost = useUpdateCostSetting();
   const deleteCost = useDeleteCostSetting();
   const logOne = useLogCostToExpense();
   const logAll = useLogAllCostsToExpenses();
-  const updateSettings = useUpdateUserSettings();
-
-  const handleSaveMonthlyMiles = async () => {
-    const miles = parseFloat(monthlyMiles);
-    if (isNaN(miles) || miles < 0) return;
-    try {
-      await updateSettings.mutateAsync({ targetMonthlyMiles: Math.round(miles) });
-      setMonthlyMilesSaved(true);
-      setTimeout(() => setMonthlyMilesSaved(false), 2000);
-    } catch {
-      // silent — analysis still works with local value
-    }
-  };
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -432,7 +403,7 @@ export default function CostSetupScreen() {
                 fixedMonthly += item.amount * (freqToMonthly[item.frequency] ?? 1);
               }
             }
-            const miles = parseFloat(monthlyMiles) || 0;
+            const miles = analysis?.milesPerMonth > 0 ? Math.round(analysis.milesPerMonth) : 0;
             const fixedPerMile = miles > 0 ? fixedMonthly / miles : null;
             const totalFixedPerMile = fixedPerMile !== null ? fixedPerMile + perMileTotal : null;
             const fullCostPerMile = analysis?.costPerMile > 0 ? analysis.costPerMile : null;
@@ -441,55 +412,18 @@ export default function CostSetupScreen() {
               <View>
                 <Text style={[s.sectionTitle, { color: C.text }]}>What You Spend Per Mile</Text>
                 <View style={[s.cpmCard, { backgroundColor: C.card, borderColor: C.separator }]}>
-                  {/* Monthly miles input row */}
-                  <View style={s.cpmMilesRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[s.cpmMilesLabel, { color: C.textSecondary }]}>Monthly Miles</Text>
-                      <Text style={[s.cpmMilesHint, { color: C.textMuted }]}>
-                        {analysis?.targetMonthlyMiles != null
-                          ? "Your saved target — tap save to update"
-                          : analysis?.milesPerMonth > 0
-                          ? `Avg from ${analysis.tripMonths ?? 1} month${(analysis.tripMonths ?? 1) !== 1 ? "s" : ""} of trips`
-                          : "Enter your typical monthly miles"}
-                      </Text>
-                    </View>
-                    <View style={[s.cpmMilesBox, { borderColor: C.separator, backgroundColor: C.background }]}>
-                      <TextInput
-                        style={[s.cpmMilesInput, { color: C.text }]}
-                        placeholder="e.g. 10000"
-                        placeholderTextColor={C.textMuted}
-                        value={monthlyMiles}
-                        onChangeText={(v) => { setMonthlyMiles(v); setMonthlyMilesSaved(false); }}
-                        keyboardType="numeric"
-                        onSubmitEditing={handleSaveMonthlyMiles}
-                        returnKeyType="done"
-                      />
-                    </View>
-                    <TouchableOpacity
-                      onPress={handleSaveMonthlyMiles}
-                      disabled={updateSettings.isPending || monthlyMilesSaved}
-                      style={[
-                        s.cpmSaveBtn,
-                        { backgroundColor: monthlyMilesSaved ? "#22c55e" : C.primary },
-                      ]}
-                    >
-                      {updateSettings.isPending
-                        ? <ActivityIndicator size="small" color="#fff" />
-                        : <Ionicons name={monthlyMilesSaved ? "checkmark" : "save-outline"} size={16} color="#fff" />}
-                    </TouchableOpacity>
-                  </View>
-
-                  <View style={[s.cpmDivider, { backgroundColor: C.separator }]} />
 
                   {/* Fixed cost per mile */}
                   <View style={s.cpmRow}>
                     <Text style={[s.cpmLabel, { color: C.textSecondary }]}>Fixed Costs / Mile</Text>
                     <Text style={[s.cpmValue, { color: fixedPerMile !== null ? "#ef4444" : C.textMuted }]}>
-                      {fixedPerMile !== null ? fmt(fixedPerMile, 4) : miles === 0 ? "Enter miles →" : "—"}
+                      {fixedPerMile !== null ? fmt(fixedPerMile, 4) : "Log trips →"}
                     </Text>
                   </View>
                   <Text style={[s.cpmSub, { color: C.textMuted }]}>
-                    {fmt(fixedMonthly)}/mo ÷ {miles > 0 ? miles.toLocaleString() : "?"} mi
+                    {miles > 0
+                      ? `${fmt(fixedMonthly)}/mo ÷ ${miles.toLocaleString()} mi/mo avg (${analysis?.tripMonths ?? 1} month${(analysis?.tripMonths ?? 1) !== 1 ? "s" : ""})`
+                      : `${fmt(fixedMonthly)}/mo — log trips to auto-calculate`}
                   </Text>
 
                   {perMileTotal > 0 && (
@@ -694,12 +628,6 @@ function makeStyles(C: typeof Colors.light) {
     logAllBanner: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 13, borderRadius: 14, borderWidth: 1 },
     logAllText: { fontSize: 14, fontWeight: "700", flex: 1 },
     cpmCard: { borderRadius: 18, borderWidth: 1, overflow: "hidden", padding: 16, gap: 6 },
-    cpmMilesRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingBottom: 4 },
-    cpmMilesLabel: { fontSize: 14, fontWeight: "600" },
-    cpmMilesHint: { fontSize: 11, marginTop: 1 },
-    cpmMilesBox: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minWidth: 100 },
-    cpmMilesInput: { fontSize: 16, fontWeight: "700", textAlign: "right" },
-    cpmSaveBtn: { width: 36, height: 36, borderRadius: 10, justifyContent: "center", alignItems: "center" },
     cpmDivider: { height: 1, marginVertical: 6 },
     cpmRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 4 },
     cpmLabel: { fontSize: 13 },
