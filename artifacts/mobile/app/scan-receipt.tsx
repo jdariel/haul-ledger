@@ -14,53 +14,13 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
-
 import * as ImagePicker from "expo-image-picker";
-import * as FileSystem from "expo-file-system/legacy";
-import * as ImageManipulator from "expo-image-manipulator";
+import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 
 import { Colors } from "@/constants/colors";
 import { useCreateExpense, apiFetch } from "@/hooks/useApi";
 import { useColorScheme } from "@/hooks/useColorScheme";
-
-async function uriToBase64(uri: string): Promise<string> {
-  if (uri.startsWith("data:")) {
-    return uri.split(",")[1] ?? "";
-  }
-  if (Platform.OS !== "web") {
-    return FileSystem.readAsStringAsync(uri, { encoding: "base64" as never });
-  }
-  const response = await fetch(uri);
-  const blob = await response.blob();
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const result = reader.result as string;
-      resolve(result.split(",")[1] ?? "");
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
-}
-
-interface ResizeResult { uri: string; mimeType: string }
-
-async function resizeForUpload(uri: string): Promise<ResizeResult> {
-  try {
-    const result = await ImageManipulator.manipulateAsync(
-      uri,
-      [{ resize: { width: 1200 } }],
-      { compress: 0.65, format: ImageManipulator.SaveFormat.JPEG }
-    );
-    return { uri: result.uri, mimeType: "image/jpeg" };
-  } catch {
-    // Fallback: guess mimeType from extension, default to jpeg
-    const ext = uri.split(".").pop()?.toLowerCase();
-    const mimeType = ext === "png" ? "image/png" : "image/jpeg";
-    return { uri, mimeType };
-  }
-}
 
 const CATEGORIES = ["Fuel", "Maintenance", "Lumper", "Tolls", "Parking", "Scale Fee", "Other"];
 
@@ -75,7 +35,7 @@ interface ParsedReceipt {
   receiptUrl: string | null;
 }
 
-type ScanStatus = "idle" | "uploading" | "analyzing" | "done" | "error";
+type ScanStatus = "idle" | "analyzing" | "done" | "error";
 
 export default function ScanReceiptScreen() {
   const colorScheme = useColorScheme();
@@ -91,7 +51,7 @@ export default function ScanReceiptScreen() {
 
   const createExpense = useCreateExpense();
 
-  // Pre-warm camera permission check so there's no async delay when the button is tapped
+  // Pre-check camera permissions so the button tap is instant
   useEffect(() => {
     ImagePicker.getCameraPermissionsAsync().then(({ status }) => {
       cameraPermGranted.current = status === "granted";
@@ -99,7 +59,10 @@ export default function ScanReceiptScreen() {
   }, []);
 
   const pickImage = async (fromCamera: boolean) => {
-    let result;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    let result: ImagePicker.ImagePickerResult;
+
     if (fromCamera) {
       if (!cameraPermGranted.current) {
         const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -111,35 +74,41 @@ export default function ScanReceiptScreen() {
       }
       result = await ImagePicker.launchCameraAsync({
         mediaTypes: ["images"],
-        quality: 0.85,
+        // base64 gives us the image data directly — no FileSystem or manipulator needed
+        base64: true,
+        quality: 0.6,
         allowsEditing: false,
         exif: false,
       });
     } else {
       result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
-        quality: 0.85,
+        base64: true,
+        quality: 0.6,
         allowsEditing: false,
         exif: false,
       });
     }
 
     if (!result.canceled && result.assets[0]) {
-      const uri = result.assets[0].uri;
-      setImage(uri);
+      const asset = result.assets[0];
+      setImage(asset.uri);
       setParsed(null);
       setErrorMsg(null);
-      await processReceipt(uri);
+
+      const base64 = asset.base64;
+      if (!base64) {
+        setErrorMsg("Could not read image data. Please try again.");
+        setScanStatus("error");
+        return;
+      }
+
+      await processReceipt(base64, "image/jpeg");
     }
   };
 
-  const processReceipt = async (uri: string) => {
+  const processReceipt = async (base64: string, mimeType: string) => {
     try {
-      setScanStatus("uploading");
-      // Resize to 1200px wide at 65% JPEG quality — keeps text legible, cuts payload ~80%
-      const { uri: resizedUri, mimeType } = await resizeForUpload(uri);
-      const base64 = await uriToBase64(resizedUri);
-
       setScanStatus("analyzing");
       const data = await apiFetch("/receipts/process", {
         method: "POST",
@@ -200,12 +169,11 @@ export default function ScanReceiptScreen() {
     setParsed((prev) => prev ? { ...prev, [field]: value } : prev);
   };
 
-  const statusLabel: Record<ScanStatus, string> = {
-    idle: "",
-    uploading: "Uploading receipt…",
-    analyzing: "AI is reading your receipt…",
-    done: "",
-    error: "",
+  const reset = () => {
+    setImage(null);
+    setParsed(null);
+    setScanStatus("idle");
+    setErrorMsg(null);
   };
 
   return (
@@ -259,7 +227,7 @@ export default function ScanReceiptScreen() {
               <Image source={{ uri: image }} style={s.receiptImage} resizeMode="contain" />
               <TouchableOpacity
                 style={[s.retakeBtn, { borderColor: C.separator, backgroundColor: C.card }]}
-                onPress={() => { setImage(null); setParsed(null); setScanStatus("idle"); setErrorMsg(null); }}
+                onPress={reset}
               >
                 <Ionicons name="refresh-outline" size={15} color={C.textSecondary} />
                 <Text style={[s.retakeText, { color: C.textSecondary }]}>Retake</Text>
@@ -267,17 +235,24 @@ export default function ScanReceiptScreen() {
             </View>
           )}
 
-          {(scanStatus === "uploading" || scanStatus === "analyzing") && (
+          {scanStatus === "analyzing" && (
             <View style={s.statusBox}>
               <ActivityIndicator size="small" color={C.primary} />
-              <Text style={[s.statusText, { color: C.textSecondary }]}>{statusLabel[scanStatus]}</Text>
+              <Text style={[s.statusText, { color: C.textSecondary }]}>
+                AI is reading your receipt…
+              </Text>
             </View>
           )}
 
           {scanStatus === "error" && (
             <View style={[s.errorBox, { backgroundColor: "#fef2f2", borderColor: "#fca5a5" }]}>
               <Ionicons name="alert-circle-outline" size={20} color="#ef4444" />
-              <Text style={[s.errorText, { color: "#ef4444" }]}>{errorMsg}</Text>
+              <View style={{ flex: 1, gap: 6 }}>
+                <Text style={[s.errorText, { color: "#ef4444" }]}>{errorMsg}</Text>
+                <TouchableOpacity onPress={reset}>
+                  <Text style={{ color: C.primary, fontSize: 13, fontWeight: "600" }}>Try again</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
 
@@ -464,7 +439,7 @@ function makeStyles(C: typeof Colors.light) {
     statusText: { fontSize: 14 },
     errorBox: {
       flexDirection: "row",
-      alignItems: "center",
+      alignItems: "flex-start",
       gap: 8,
       padding: 14,
       borderRadius: 12,
