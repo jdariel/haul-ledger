@@ -386,7 +386,20 @@ export function useDeleteCostSetting() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => apiFetch(`/cost-settings/${id}`, { method: "DELETE" }),
-    onSuccess: () => {
+    onMutate: async (id: number) => {
+      await qc.cancelQueries({ queryKey: ["cost-settings"] });
+      const previous = qc.getQueryData(["cost-settings"]);
+      qc.setQueryData(["cost-settings"], (old: any[]) =>
+        Array.isArray(old) ? old.filter((item) => item.id !== id) : old,
+      );
+      return { previous };
+    },
+    onError: (_err, _id, context: any) => {
+      if (context?.previous !== undefined) {
+        qc.setQueryData(["cost-settings"], context.previous);
+      }
+    },
+    onSettled: () => {
       qc.invalidateQueries({ queryKey: ["cost-settings"] });
       qc.invalidateQueries({ queryKey: ["cost-analysis"] });
     },

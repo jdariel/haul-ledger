@@ -110,11 +110,16 @@ router.put("/:id", requireAuth, async (req, res) => {
 // DELETE /api/cost-settings/:id
 router.delete("/:id", requireAuth, async (req, res) => {
   try {
-    await db
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+    const [deleted] = await db
       .delete(costSettingsTable)
-      .where(and(eq(costSettingsTable.id, parseInt(req.params.id)), eq(costSettingsTable.userId, req.user!.id)));
-    res.json({ message: "Deleted" });
-  } catch {
+      .where(and(eq(costSettingsTable.id, id), eq(costSettingsTable.userId, req.user!.id)))
+      .returning();
+    if (!deleted) return res.status(404).json({ error: "Cost setting not found" });
+    res.json({ message: "Deleted", id });
+  } catch (err) {
+    console.error("Delete cost setting error:", err);
     res.status(500).json({ error: "Failed to delete cost setting" });
   }
 });
