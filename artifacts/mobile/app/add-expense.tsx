@@ -22,8 +22,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import { Colors } from "@/constants/colors";
 import { FormInput } from "@/components/FormInput";
 import { SelectField } from "@/components/SelectField";
-import { useCreateExpense, useUpdateExpense, useExpense, useFleet } from "@/hooks/useApi";
-import { API_BASE_URL } from "@/constants/api";
+import { useCreateExpense, useUpdateExpense, useExpense, useFleet, apiFetch } from "@/hooks/useApi";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { trackEntryAndRequestReview } from "@/lib/appReview";
 
@@ -163,13 +162,10 @@ export default function AddExpenseScreen() {
       setScanStatus("uploading");
       const base64 = await uriToBase64(uri);
       setScanStatus("analyzing");
-      const response = await fetch(`${API_BASE_URL}/receipts/process`, {
+      const data = await apiFetch("/receipts/process", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ imageBase64: base64, mimeType: "image/jpeg" }),
       });
-      if (!response.ok) throw new Error("Server error");
-      const data = await response.json();
 
       if (data.merchant) setMerchant(data.merchant);
       if (data.date) setDate(data.date);
@@ -181,9 +177,10 @@ export default function AddExpenseScreen() {
       if (data.receiptUrl) setReceiptUrl(data.receiptUrl);
 
       setScanStatus("done");
-    } catch {
+    } catch (err: unknown) {
       setScanStatus("error");
-      Alert.alert("Scan failed", "Could not read the receipt. Please fill in the details manually.");
+      const msg = err instanceof Error ? err.message : "Could not read the receipt. Please try a clearer photo.";
+      Alert.alert("Scan failed", msg);
     }
   };
 
