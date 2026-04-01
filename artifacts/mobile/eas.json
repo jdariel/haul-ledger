@@ -19,6 +19,7 @@
     },
     "production": {
       "autoIncrement": true,
+      "autoSubmit": true,
       "env": {
         "SENTRY_DISABLE_AUTO_UPLOAD": "true",
         "EXPO_PUBLIC_DOMAIN": "trucking-ledger.replit.app"
