@@ -5,7 +5,7 @@ const config = getDefaultConfig(__dirname);
 
 const projectRoot = path.resolve(__dirname, "../..");
 
-config.watchFolders = [projectRoot];
+config.watchFolders = [...(config.watchFolders ?? []), projectRoot];
 
 const blockList = [
   /node_modules\/.pnpm\/@google-cloud\+storage[^/]*\/node_modules\/@google-cloud\/storage_tmp.*/,
