@@ -391,7 +391,7 @@ export default function AddIncomeScreen() {
                     {/* Remove button for intermediate stops only */}
                     {!isFirst && !isLast && (
                       <TouchableOpacity
-                        style={[s.removeStopBtn, { backgroundColor: "#fef2f2" }]}
+                        style={[s.removeStopBtn, { backgroundColor: C.redLight }]}
                         onPress={() => {
                           const updated = stops.filter((_, i) => i !== idx);
                           setStops(updated);

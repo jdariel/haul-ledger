@@ -234,13 +234,13 @@ export default function MoreScreen() {
           <Row icon="git-merge-outline" iconBg={C.tealLight} iconColor={C.teal}
             label="Saved Routes" subtitle="Templates for quick income logging"
             onPress={() => router.push("/add-route")} C={C} />
-          <Row icon="bus-outline" iconBg="#dbeafe" iconColor="#2563eb"
+          <Row icon="bus-outline" iconBg={C.blue2Light} iconColor={C.blue2}
             label="Fleet & Assets" subtitle="Manage drivers, trucks and trailers"
             onPress={() => router.push("/fleet")} C={C} />
-          <Row icon="calculator-outline" iconBg="#f3e8ff" iconColor="#7c3aed"
+          <Row icon="calculator-outline" iconBg={C.purpleLight} iconColor={C.purple}
             label="Cost Setup" subtitle="Track fixed costs, MPG, cost per mile"
             onPress={() => router.push("/cost-setup")} C={C} />
-          <Row icon="trending-up-outline" iconBg="#dcfce7" iconColor="#16a34a"
+          <Row icon="trending-up-outline" iconBg={C.grassLight} iconColor={C.grass}
             label="Load Evaluator" subtitle="See your clean profit before accepting a load"
             onPress={() => router.push("/load-evaluator")} last C={C} />
         </View>
@@ -288,8 +288,8 @@ export default function MoreScreen() {
         <Text style={s.sectionLabel}>Security</Text>
         <View style={[s.card, { backgroundColor: C.card, borderColor: C.separator, padding: 0 }]}>
           <View style={s.prefRow}>
-            <View style={[rowS.iconBox, { backgroundColor: "#fef2f2" }]}>
-              <Ionicons name="finger-print" size={19} color="#ef4444" />
+            <View style={[rowS.iconBox, { backgroundColor: C.redLight }]}>
+              <Ionicons name="finger-print" size={19} color={C.red} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[s.prefLabel, { color: C.text }]}>
@@ -475,7 +475,7 @@ function makeStyles(C: typeof Colors.light) {
     authBadgeText: { fontSize: 11, fontWeight: "700" },
     editProfileBtn: { width: 32, height: 32, borderRadius: 8, justifyContent: "center", alignItems: "center", alignSelf: "flex-start" },
     editSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 12, paddingHorizontal: 20, paddingBottom: 32, gap: 14 },
-    sheetHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#d1d5db", alignSelf: "center", marginBottom: 4 },
+    sheetHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: C.separator, alignSelf: "center", marginBottom: 4 },
     sheetHdr: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
     sheetTitle: { fontSize: 18, fontWeight: "700" },
     sheetSub: { fontSize: 13, lineHeight: 19 },

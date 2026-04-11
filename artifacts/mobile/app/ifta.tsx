@@ -124,8 +124,8 @@ export default function IFTAScreen() {
         </View>
 
         {/* Disclaimer */}
-        <View style={[s.disclaimer, { backgroundColor: "#fef3c7", borderColor: "#f59e0b" }]}>
-          <Ionicons name="information-circle-outline" size={14} color="#92400e" />
+        <View style={[s.disclaimer, { backgroundColor: C.orangeLight, borderColor: C.orange }]}>
+          <Ionicons name="information-circle-outline" size={14} color={C.orange} />
           <Text style={s.disclaimerText}>
             Tax rates are approximate (2024). Always verify with your IFTA jurisdiction before filing.
           </Text>
@@ -156,14 +156,14 @@ export default function IFTAScreen() {
                 <Text style={[s.summaryLbl, { color: C.textSecondary }]}>Fleet MPG</Text>
               </View>
               <View style={[s.summaryItem, {
-                backgroundColor: totalTaxDue >= 0 ? "#fee2e2" : "#d1fae5",
-                borderColor: totalTaxDue >= 0 ? "#ef4444" : "#10b981",
+                backgroundColor: totalTaxDue >= 0 ? C.redLight : C.greenLight,
+                borderColor: totalTaxDue >= 0 ? C.red : C.green,
               }]}>
-                <Ionicons name="receipt" size={18} color={totalTaxDue >= 0 ? "#ef4444" : "#10b981"} />
-                <Text style={[s.summaryVal, { color: totalTaxDue >= 0 ? "#ef4444" : "#10b981" }]}>
+                <Ionicons name="receipt" size={18} color={totalTaxDue >= 0 ? C.red : C.green} />
+                <Text style={[s.summaryVal, { color: totalTaxDue >= 0 ? C.red : C.green }]}>
                   {fmtMoney(totalTaxDue)}
                 </Text>
-                <Text style={[s.summaryLbl, { color: totalTaxDue >= 0 ? "#b91c1c" : "#065f46" }]}>
+                <Text style={[s.summaryLbl, { color: totalTaxDue >= 0 ? C.red : C.green }]}>
                   {totalTaxDue >= 0 ? "Tax Due" : "Credit"}
                 </Text>
               </View>
@@ -198,7 +198,7 @@ export default function IFTAScreen() {
                   return (
                     <View key={j.code} style={[s.jurCard, { backgroundColor: C.card, borderColor: C.separator }]}>
                       {/* Jurisdiction header */}
-                      <View style={[s.jurHeader, { backgroundColor: j.taxDue >= 0 ? "#fef2f2" : "#f0fdf4" }]}>
+                      <View style={[s.jurHeader, { backgroundColor: j.taxDue >= 0 ? C.redLight : C.greenLight }]}>
                         <View style={s.jurCodeBadge}>
                           <Text style={s.jurCode}>{j.code}</Text>
                         </View>
@@ -364,7 +364,7 @@ function makeStyles(C: typeof Colors.light) {
       borderWidth: 1,
       padding: 10,
     },
-    disclaimerText: { fontSize: 11, color: "#92400e", flex: 1, lineHeight: 16 },
+    disclaimerText: { fontSize: 11, color: C.orange, flex: 1, lineHeight: 16 },
 
     loadingBox: { alignItems: "center", gap: 12, paddingVertical: 60 },
     loadingText: { fontSize: 14 },

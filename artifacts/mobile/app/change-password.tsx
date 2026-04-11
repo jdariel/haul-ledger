@@ -91,9 +91,9 @@ export default function ChangePasswordScreen() {
 
         {/* Success banner */}
         {success && (
-          <View style={[s.banner, { backgroundColor: "#dcfce7", borderColor: "#86efac" }]}>
-            <Ionicons name="checkmark-circle" size={20} color="#16a34a" />
-            <Text style={[s.bannerText, { color: "#15803d" }]}>
+          <View style={[s.banner, { backgroundColor: C.greenLight, borderColor: C.green }]}>
+            <Ionicons name="checkmark-circle" size={20} color={C.green} />
+            <Text style={[s.bannerText, { color: C.green }]}>
               Password updated successfully! Taking you back…
             </Text>
           </View>
@@ -101,9 +101,9 @@ export default function ChangePasswordScreen() {
 
         {/* Error banner */}
         {errorMessage && !success && (
-          <View style={[s.banner, { backgroundColor: "#fef2f2", borderColor: "#fca5a5" }]}>
-            <Ionicons name="alert-circle" size={20} color="#dc2626" />
-            <Text style={[s.bannerText, { color: "#dc2626" }]}>{errorMessage}</Text>
+          <View style={[s.banner, { backgroundColor: C.redLight, borderColor: C.red }]}>
+            <Ionicons name="alert-circle" size={20} color={C.red} />
+            <Text style={[s.bannerText, { color: C.red }]}>{errorMessage}</Text>
           </View>
         )}
 

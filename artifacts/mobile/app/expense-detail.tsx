@@ -23,17 +23,19 @@ function receiptImageUrl(objectPath: string): string {
   return `${API_BASE_URL}/storage${objectPath}`;
 }
 
-const CATEGORY_ICONS: Record<string, { icon: string; color: string; bg: string }> = {
-  Fuel: { icon: "flame", color: "#f59e0b", bg: "#fef3c7" },
-  Maintenance: { icon: "construct", color: "#8b5cf6", bg: "#ede9fe" },
-  Repairs: { icon: "build", color: "#8b5cf6", bg: "#ede9fe" },
-  Lumper: { icon: "people", color: "#3b82f6", bg: "#eff6ff" },
-  Tolls: { icon: "car", color: "#6b7280", bg: "#f3f4f6" },
-  Parking: { icon: "location", color: "#14b8a6", bg: "#ccfbf1" },
-  "Scale Fee": { icon: "scale", color: "#f97316", bg: "#fff7ed" },
-  Insurance: { icon: "shield-checkmark", color: "#0ea5e9", bg: "#e0f2fe" },
-  Other: { icon: "ellipsis-horizontal", color: "#6b7280", bg: "#f3f4f6" },
-};
+function getCategoryIcons(C: typeof Colors.light): Record<string, { icon: string; color: string; bg: string }> {
+  return {
+    Fuel: { icon: "flame", color: C.orange, bg: C.orangeLight },
+    Maintenance: { icon: "construct", color: C.purple, bg: C.purpleLight },
+    Repairs: { icon: "build", color: C.purple, bg: C.purpleLight },
+    Lumper: { icon: "people", color: C.blue2, bg: C.blue2Light },
+    Tolls: { icon: "car", color: C.textSecondary, bg: C.neutralBg },
+    Parking: { icon: "location", color: C.teal, bg: C.tealLight },
+    "Scale Fee": { icon: "scale", color: C.orange, bg: C.orangeLight },
+    Insurance: { icon: "shield-checkmark", color: C.primary, bg: C.primaryLight },
+    Other: { icon: "ellipsis-horizontal", color: C.textSecondary, bg: C.neutralBg },
+  };
+}
 
 function Row({ label, value, C }: { label: string; value?: string | null; C: typeof Colors.light }) {
   if (!value) return null;
@@ -69,6 +71,7 @@ export default function ExpenseDetailScreen() {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const s = makeStyles(C);
+  const CATEGORY_ICONS = getCategoryIcons(C);
   const { width, height } = Dimensions.get("window");
 
   const handleDelete = () => setConfirmDelete(true);

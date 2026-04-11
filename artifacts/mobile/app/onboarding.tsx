@@ -30,57 +30,59 @@ interface Step {
   cta?: string;
 }
 
-const STEPS: Step[] = [
-  {
-    icon: "receipt-outline",
-    iconBg: "#dbeafe",
-    iconColor: "#3b82f6",
-    title: "Log Every Dollar",
-    subtitle: "Capture income, expenses, and fuel — right from the road.",
-    bullets: [
-      "Tap + on the home screen to log a load payment in seconds",
-      "Photograph receipts to auto-fill fuel, maintenance, and more",
-      "Fixed costs like insurance and truck payments log themselves automatically",
-    ],
-  },
-  {
-    icon: "calculator-outline",
-    iconBg: "#ede9fe",
-    iconColor: "#7c3aed",
-    title: "Know Your Cost Per Mile",
-    subtitle: "Cost Setup breaks down exactly what you spend to keep the wheels turning.",
-    bullets: [
-      "Enter your fixed costs — insurance, truck payment, permits, and more",
-      "See your fixed cost per mile based on how many miles you run",
-      "Costs sync to your expense log automatically — no double entry",
-    ],
-  },
-  {
-    icon: "trending-up-outline",
-    iconBg: "#dcfce7",
-    iconColor: "#16a34a",
-    title: "Evaluate Every Load",
-    subtitle: "Know your clean profit before you say yes to a load.",
-    bullets: [
-      "Enter the rate, miles, and today's fuel price",
-      "Load Evaluator shows fuel cost, fixed cost allocation, and net profit",
-      "See your margin % and whether the load is worth taking",
-    ],
-  },
-  {
-    icon: "bar-chart-outline",
-    iconBg: "#d1fae5",
-    iconColor: "#10b981",
-    title: "Reports & Fleet Tools",
-    subtitle: "Everything you need to run your operation like a business.",
-    bullets: [
-      "Dashboard shows weekly income, expenses, and net profit at a glance",
-      "IFTA report tracks fuel and miles by state — export-ready each quarter",
-      "Fleet tab lets you manage drivers and log expenses on their behalf",
-    ],
-    cta: "Set Up Cost Setup",
-  },
-];
+function getSteps(C: typeof Colors.light): Step[] {
+  return [
+    {
+      icon: "receipt-outline",
+      iconBg: C.blue2Light,
+      iconColor: C.blue2,
+      title: "Log Every Dollar",
+      subtitle: "Capture income, expenses, and fuel — right from the road.",
+      bullets: [
+        "Tap + on the home screen to log a load payment in seconds",
+        "Photograph receipts to auto-fill fuel, maintenance, and more",
+        "Fixed costs like insurance and truck payments log themselves automatically",
+      ],
+    },
+    {
+      icon: "calculator-outline",
+      iconBg: C.purpleLight,
+      iconColor: C.purple,
+      title: "Know Your Cost Per Mile",
+      subtitle: "Cost Setup breaks down exactly what you spend to keep the wheels turning.",
+      bullets: [
+        "Enter your fixed costs — insurance, truck payment, permits, and more",
+        "See your fixed cost per mile based on how many miles you run",
+        "Costs sync to your expense log automatically — no double entry",
+      ],
+    },
+    {
+      icon: "trending-up-outline",
+      iconBg: C.grassLight,
+      iconColor: C.grass,
+      title: "Evaluate Every Load",
+      subtitle: "Know your clean profit before you say yes to a load.",
+      bullets: [
+        "Enter the rate, miles, and today's fuel price",
+        "Load Evaluator shows fuel cost, fixed cost allocation, and net profit",
+        "See your margin % and whether the load is worth taking",
+      ],
+    },
+    {
+      icon: "bar-chart-outline",
+      iconBg: C.greenLight,
+      iconColor: C.green,
+      title: "Reports & Fleet Tools",
+      subtitle: "Everything you need to run your operation like a business.",
+      bullets: [
+        "Dashboard shows weekly income, expenses, and net profit at a glance",
+        "IFTA report tracks fuel and miles by state — export-ready each quarter",
+        "Fleet tab lets you manage drivers and log expenses on their behalf",
+      ],
+      cta: "Set Up Cost Setup",
+    },
+  ];
+}
 
 async function markOnboardingDone() {
   try {
@@ -94,6 +96,7 @@ export default function OnboardingScreen() {
   const colorScheme = useColorScheme();
   const C = Colors[colorScheme === "dark" ? "dark" : "light"];
   const s = makeStyles(C);
+  const STEPS = getSteps(C);
 
   const scrollRef = useRef<ScrollView>(null);
   const [currentStep, setCurrentStep] = useState(0);

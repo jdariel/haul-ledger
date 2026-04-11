@@ -415,9 +415,9 @@ function makeStyles(C: typeof Colors.light) {
 
     errorBox: {
       flexDirection: "row", alignItems: "center", gap: 8,
-      backgroundColor: "#fee2e2", borderRadius: 10, padding: 12,
+      backgroundColor: C.redLight, borderRadius: 10, padding: 12,
     },
-    errorText: { color: "#b91c1c", fontSize: 13, flex: 1, lineHeight: 18 },
+    errorText: { color: C.red, fontSize: 13, flex: 1, lineHeight: 18 },
 
     card: {
       borderRadius: 20, borderWidth: 1, padding: 24, gap: 16,

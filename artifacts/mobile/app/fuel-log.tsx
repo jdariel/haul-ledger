@@ -122,8 +122,8 @@ export default function FuelLogScreen() {
           <View style={s.list}>
             {sorted.map((e: any) => (
               <View key={e.id} style={[s.card, { backgroundColor: C.card, borderColor: C.separator }]}>
-                <View style={[s.iconWrap, { backgroundColor: "#fef3c7" }]}>
-                  <Ionicons name="flame" size={20} color="#f59e0b" />
+                <View style={[s.iconWrap, { backgroundColor: C.orangeLight }]}>
+                  <Ionicons name="flame" size={20} color={C.orange} />
                 </View>
                 <View style={s.cardBody}>
                   <View style={s.cardTop}>

@@ -42,15 +42,17 @@ function fmtDate(d: Date) {
 
 const CATEGORIES = ["All", "Fuel", "Maintenance", "Lumper", "Tolls", "Parking", "Scale Fee", "Other"];
 
-const CATEGORY_ICONS: Record<string, { icon: string; color: string; bg: string }> = {
-  Fuel: { icon: "flame", color: "#f59e0b", bg: "#fef3c7" },
-  Maintenance: { icon: "construct", color: "#8b5cf6", bg: "#ede9fe" },
-  Lumper: { icon: "people", color: "#3b82f6", bg: "#eff6ff" },
-  Tolls: { icon: "car", color: "#6b7280", bg: "#f3f4f6" },
-  Parking: { icon: "location", color: "#14b8a6", bg: "#ccfbf1" },
-  "Scale Fee": { icon: "scale", color: "#f97316", bg: "#fff7ed" },
-  Other: { icon: "ellipsis-horizontal", color: "#6b7280", bg: "#f3f4f6" },
-};
+function getCategoryIcons(C: typeof Colors.light): Record<string, { icon: string; color: string; bg: string }> {
+  return {
+    Fuel: { icon: "flame", color: C.orange, bg: C.orangeLight },
+    Maintenance: { icon: "construct", color: C.purple, bg: C.purpleLight },
+    Lumper: { icon: "people", color: C.blue2, bg: C.blue2Light },
+    Tolls: { icon: "car", color: C.textSecondary, bg: C.neutralBg },
+    Parking: { icon: "location", color: C.teal, bg: C.tealLight },
+    "Scale Fee": { icon: "scale", color: C.orange, bg: C.orangeLight },
+    Other: { icon: "ellipsis-horizontal", color: C.textSecondary, bg: C.neutralBg },
+  };
+}
 
 export default function ExpensesScreen() {
   const colorScheme = useColorScheme();
@@ -100,6 +102,7 @@ export default function ExpensesScreen() {
 
 
   const s = makeStyles(C);
+  const CATEGORY_ICONS = getCategoryIcons(C);
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>

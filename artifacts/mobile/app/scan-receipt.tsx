@@ -260,7 +260,7 @@ export default function ScanReceiptScreen() {
           )}
 
           {scanStatus === "error" && (
-            <View style={[s.errorBox, { backgroundColor: "#fef2f2", borderColor: "#fca5a5" }]}>
+            <View style={[s.errorBox, { backgroundColor: C.redLight, borderColor: C.red }]}>
               <Ionicons name="alert-circle-outline" size={20} color="#ef4444" />
               <View style={{ flex: 1, gap: 6 }}>
                 <Text style={[s.errorText, { color: "#ef4444" }]}>{errorMsg}</Text>

@@ -304,7 +304,7 @@ export default function AddExpenseScreen() {
           <View style={[s.receiptPreview, { backgroundColor: C.card, borderColor: C.cardBorder }]}>
             <View style={s.receiptPreviewLeft}>
               {receiptUri ? (
-                <Image source={{ uri: receiptUri }} style={s.receiptThumb} />
+                <Image source={{ uri: receiptUri }} style={[s.receiptThumb, { backgroundColor: C.neutralBg }]} />
               ) : null}
               <View>
                 <View style={[s.aiBadge, { backgroundColor: C.primaryLight }]}>
@@ -361,10 +361,10 @@ export default function AddExpenseScreen() {
 
         {/* Fuel Details */}
         {isFuel && (
-          <View style={[s.fuelBox, { borderColor: "#f59e0b", backgroundColor: "#fffbeb" }]}>
+          <View style={[s.fuelBox, { borderColor: C.orange, backgroundColor: C.orangeLight }]}>
             <View style={s.fuelHeader}>
-              <MaterialCommunityIcons name="fire" size={16} color="#f59e0b" />
-              <Text style={s.fuelTitle}>FUEL DETAILS</Text>
+              <MaterialCommunityIcons name="fire" size={16} color={C.orange} />
+              <Text style={[s.fuelTitle, { color: C.orange }]}>FUEL DETAILS</Text>
             </View>
             <View style={s.row}>
               <View style={s.half}>
