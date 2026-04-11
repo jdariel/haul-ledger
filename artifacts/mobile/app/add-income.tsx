@@ -36,12 +36,13 @@ async function geocode(query: string): Promise<{ lat: number; lon: number } | nu
   }
 }
 
-async function routeDistance(
-  from: { lat: number; lon: number },
-  to: { lat: number; lon: number }
+async function routeDistanceMulti(
+  coords: { lat: number; lon: number }[]
 ): Promise<number | null> {
+  if (coords.length < 2) return null;
   try {
-    const url = `https://router.project-osrm.org/route/v1/driving/${from.lon},${from.lat};${to.lon},${to.lat}?overview=false`;
+    const waypoints = coords.map(c => `${c.lon},${c.lat}`).join(";");
+    const url = `https://router.project-osrm.org/route/v1/driving/${waypoints}?overview=false`;
     const res = await fetch(url);
     const data = await res.json();
     if (data.code !== "Ok" || !data.routes?.length) return null;
@@ -81,11 +82,15 @@ export default function AddIncomeScreen() {
   const [selectedRoute, setSelectedRoute] = useState("");
   const [prefilled, setPrefilled] = useState(false);
 
-  const [pickupLocation, setPickupLocation] = useState("");
-  const [deliveryLocation, setDeliveryLocation] = useState("");
+  // Multi-stop route: first = pickup, last = delivery, middle = intermediate stops
+  const [stops, setStops] = useState<string[]>(["", ""]);
   const [loadedMiles, setLoadedMiles] = useState<number | null>(null);
   const [emptyMiles, setEmptyMiles] = useState<number | null>(null);
   const [emptyFromLabel, setEmptyFromLabel] = useState<string | null>(null);
+  // Deadhead TO — optional parking/terminal after final delivery
+  const [deadheadToEnabled, setDeadheadToEnabled] = useState(false);
+  const [parkingLocation, setParkingLocation] = useState("");
+  const [emptyToMiles, setEmptyToMiles] = useState<number | null>(null);
   const [calculating, setCalculating] = useState(false);
 
   const topPad = Platform.OS === "web" ? 24 : insets.top;
@@ -99,8 +104,10 @@ export default function AddIncomeScreen() {
       setAmount(existing.amount != null ? String(existing.amount) : "");
       setTrailerNumber(existing.trailerNumber ?? "");
       setNotes(existing.notes ?? "");
-      setPickupLocation(existing.pickupLocation ?? "");
-      setDeliveryLocation(existing.deliveryLocation ?? "");
+      // Restore stops from pickupLocation / deliveryLocation
+      const pickup = existing.pickupLocation ?? "";
+      const delivery = existing.deliveryLocation ?? "";
+      setStops([pickup, delivery]);
       setLoadedMiles(existing.loadedMiles ?? null);
       setEmptyMiles(existing.emptyMiles ?? null);
       setPrefilled(true);
@@ -130,43 +137,66 @@ export default function AddIncomeScreen() {
     }
   };
 
-  const handleCalculateMiles = async () => {
-    if (!pickupLocation.trim() || !deliveryLocation.trim()) {
-      return Alert.alert("Missing locations", "Enter both pickup and delivery cities to calculate miles.");
-    }
-    setCalculating(true);
+  const resetMiles = () => {
     setLoadedMiles(null);
     setEmptyMiles(null);
     setEmptyFromLabel(null);
+    setEmptyToMiles(null);
+  };
+
+  const handleCalculateMiles = async () => {
+    const filledStops = stops.filter(s => s.trim());
+    if (filledStops.length < 2) {
+      return Alert.alert("Missing stops", "Enter at least a pickup and delivery city to calculate miles.");
+    }
+    if (deadheadToEnabled && !parkingLocation.trim()) {
+      return Alert.alert("Missing location", "Enter your parking/terminal city or disable that option.");
+    }
+    setCalculating(true);
+    resetMiles();
 
     try {
-      const [pickupCoord, deliveryCoord] = await Promise.all([
-        geocode(pickupLocation),
-        geocode(deliveryLocation),
-      ]);
-
-      if (!pickupCoord || !deliveryCoord) {
+      // Geocode all filled stops in parallel
+      const coords = await Promise.all(filledStops.map(s => geocode(s)));
+      if (coords.some(c => c === null)) {
         setCalculating(false);
-        return Alert.alert("Location not found", "Could not find one or both locations. Try adding city and state (e.g. Newark, NJ).");
+        return Alert.alert("Location not found", "Could not find one or more stops. Try city + state (e.g. Newark, NJ).");
       }
 
-      const loaded = await routeDistance(pickupCoord, deliveryCoord);
+      // Loaded miles: multi-stop route through all stops
+      const loaded = await routeDistanceMulti(coords as { lat: number; lon: number }[]);
       if (loaded == null) {
         setCalculating(false);
         return Alert.alert("Route error", "Could not calculate route. Check your internet connection.");
       }
       setLoadedMiles(loaded);
 
+      // Empty FROM: last delivery → first stop (pickup)
+      let totalEmpty = 0;
       if (lastDelivery) {
         const lastCoord = await geocode(lastDelivery);
         if (lastCoord) {
-          const empty = await routeDistance(lastCoord, pickupCoord);
-          if (empty != null) {
-            setEmptyMiles(empty);
+          const emptyFrom = await routeDistanceMulti([lastCoord, coords[0]!]);
+          if (emptyFrom != null) {
+            totalEmpty += emptyFrom;
             setEmptyFromLabel(lastDelivery);
           }
         }
       }
+
+      // Empty TO: last stop (delivery) → parking location
+      if (deadheadToEnabled && parkingLocation.trim()) {
+        const parkingCoord = await geocode(parkingLocation.trim());
+        if (parkingCoord) {
+          const emptyTo = await routeDistanceMulti([coords[coords.length - 1]!, parkingCoord]);
+          if (emptyTo != null) {
+            totalEmpty += emptyTo;
+            setEmptyToMiles(emptyTo);
+          }
+        }
+      }
+
+      if (totalEmpty > 0) setEmptyMiles(totalEmpty);
     } catch {
       Alert.alert("Error", "Something went wrong calculating miles.");
     } finally {
@@ -186,10 +216,13 @@ export default function AddIncomeScreen() {
       notes: notes.trim() || null,
     };
 
-    if (pickupLocation.trim()) payload.pickupLocation = pickupLocation.trim();
-    if (deliveryLocation.trim()) payload.deliveryLocation = deliveryLocation.trim();
-    if (pickupLocation.trim() && deliveryLocation.trim()) {
-      payload.routeName = `${pickupLocation.trim()} → ${deliveryLocation.trim()}`;
+    const firstStop = stops[0]?.trim() ?? "";
+    const lastStop = stops[stops.length - 1]?.trim() ?? "";
+    if (firstStop) payload.pickupLocation = firstStop;
+    if (lastStop) payload.deliveryLocation = lastStop;
+    if (firstStop && lastStop) {
+      const filledStops = stops.filter(s => s.trim());
+      payload.routeName = filledStops.join(" → ");
     }
     if (loadedMiles != null) payload.loadedMiles = loadedMiles;
     if (emptyMiles != null) payload.emptyMiles = emptyMiles;
@@ -314,30 +347,118 @@ export default function AddIncomeScreen() {
         <View style={[s.routeBox, { backgroundColor: C.card, borderColor: C.cardBorder }]}>
           <Text style={[s.routeBoxTitle, { color: C.text }]}>Route & Miles</Text>
           <Text style={[s.routeBoxSub, { color: C.textSecondary }]}>
-            Enter pickup and delivery to auto-calculate miles and log your trip automatically.
+            Add all stops in order. Use intermediate stops for multi-leg loads.
           </Text>
 
-          <FormInput
-            label="Pickup City"
-            value={pickupLocation}
-            onChangeText={(v) => { setPickupLocation(v); setLoadedMiles(null); setEmptyMiles(null); }}
-            placeholder="Edison, NJ"
-          />
-          <FormInput
-            label="Delivery City"
-            value={deliveryLocation}
-            onChangeText={(v) => { setDeliveryLocation(v); setLoadedMiles(null); setEmptyMiles(null); }}
-            placeholder="Newark, NJ"
-          />
+          {/* Dynamic stops list */}
+          {stops.map((stop, idx) => {
+            const isFirst = idx === 0;
+            const isLast = idx === stops.length - 1;
+            const label = isFirst ? "PICKUP" : isLast ? "DELIVERY" : `STOP ${idx}`;
+            const placeholder = isFirst ? "Edison, NJ" : isLast ? "Newark, NJ" : "City, ST";
+            return (
+              <View key={idx} style={s.stopRow}>
+                {/* Connector line */}
+                <View style={s.stopConnector}>
+                  <View style={[
+                    s.stopDot,
+                    { backgroundColor: isFirst ? C.teal : isLast ? C.primary : C.textSecondary },
+                  ]} />
+                  {!isLast && <View style={[s.stopLine, { backgroundColor: C.separator }]} />}
+                </View>
+                <View style={s.stopInput}>
+                  <Text style={[s.stopLabel, { color: C.textSecondary }]}>{label}</Text>
+                  <View style={s.stopInputRow}>
+                    <TextInput
+                      style={[s.stopField, { backgroundColor: C.inputBackground, borderColor: C.cardBorder ?? C.separator, color: C.text, flex: 1 }]}
+                      value={stop}
+                      onChangeText={(v) => {
+                        const updated = [...stops];
+                        updated[idx] = v;
+                        setStops(updated);
+                        resetMiles();
+                      }}
+                      placeholder={placeholder}
+                      placeholderTextColor={C.textMuted}
+                    />
+                    {/* Remove button for intermediate stops only */}
+                    {!isFirst && !isLast && (
+                      <TouchableOpacity
+                        style={[s.removeStopBtn, { backgroundColor: "#fef2f2" }]}
+                        onPress={() => {
+                          const updated = stops.filter((_, i) => i !== idx);
+                          setStops(updated);
+                          resetMiles();
+                        }}
+                      >
+                        <Ionicons name="close" size={16} color="#ef4444" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              </View>
+            );
+          })}
 
-          {lastDelivery && !pickupLocation && (
-            <View style={[s.prevDeliveryHint, { backgroundColor: C.tealLight }]}>
-              <Ionicons name="information-circle-outline" size={14} color={C.teal} />
-              <Text style={[s.prevDeliveryText, { color: C.teal }]}>
-                Last delivery: {lastDelivery} — empty miles will auto-calculate
+          {/* Add intermediate stop */}
+          <TouchableOpacity
+            style={[s.addStopBtn, { borderColor: C.separator }]}
+            onPress={() => {
+              // Insert before the last stop (delivery)
+              const updated = [...stops];
+              updated.splice(stops.length - 1, 0, "");
+              setStops(updated);
+              resetMiles();
+            }}
+          >
+            <Ionicons name="add-circle-outline" size={16} color={C.primary} />
+            <Text style={[s.addStopText, { color: C.primary }]}>Add intermediate stop</Text>
+          </TouchableOpacity>
+
+          {/* Empty miles section */}
+          <View style={[s.emptySection, { borderTopColor: C.separator }]}>
+            <Text style={[s.emptySectionTitle, { color: C.text }]}>Empty Miles (Deadhead)</Text>
+
+            {/* Empty FROM — auto from last delivery */}
+            {lastDelivery ? (
+              <View style={[s.deadheadRow, { backgroundColor: C.tealLight, borderColor: C.teal + "40" }]}>
+                <Ionicons name="arrow-forward-circle-outline" size={16} color={C.teal} />
+                <Text style={[s.deadheadRowText, { color: C.teal }]} numberOfLines={1}>
+                  Coming from: {lastDelivery}
+                </Text>
+              </View>
+            ) : (
+              <Text style={[s.noLastDelivery, { color: C.textMuted }]}>
+                No prior delivery found — empty miles from will not be calculated.
               </Text>
-            </View>
-          )}
+            )}
+
+            {/* Empty TO — deadhead to parking toggle */}
+            <TouchableOpacity
+              style={s.toggleRow}
+              onPress={() => { setDeadheadToEnabled(v => !v); setEmptyToMiles(null); resetMiles(); }}
+              activeOpacity={0.75}
+            >
+              <View style={[
+                s.toggle,
+                { backgroundColor: deadheadToEnabled ? C.primary : C.separator },
+              ]}>
+                <View style={[s.toggleThumb, { left: deadheadToEnabled ? 18 : 2 }]} />
+              </View>
+              <Text style={[s.toggleLabel, { color: C.text }]}>
+                Deadheading to parking/terminal after delivery
+              </Text>
+            </TouchableOpacity>
+
+            {deadheadToEnabled && (
+              <FormInput
+                label="PARKING / TERMINAL CITY"
+                value={parkingLocation}
+                onChangeText={(v) => { setParkingLocation(v); resetMiles(); }}
+                placeholder="Houston, TX"
+              />
+            )}
+          </View>
 
           <TouchableOpacity
             style={[s.calcBtn, { backgroundColor: C.teal, opacity: calculating ? 0.7 : 1 }]}
@@ -375,7 +496,7 @@ export default function AddIncomeScreen() {
               </View>
               {emptyFromLabel && (
                 <Text style={[s.emptyFromText, { color: C.textSecondary }]}>
-                  Empty from: {emptyFromLabel}
+                  Deadhead from: {emptyFromLabel}{emptyToMiles ? ` · To parking: ${emptyToMiles} mi` : ""}
                 </Text>
               )}
               <Text style={[s.tripAutoNote, { color: C.teal }]}>
@@ -473,6 +594,52 @@ const s = StyleSheet.create({
   },
   routeBoxTitle: { fontSize: 15, fontWeight: "700", marginBottom: 4 },
   routeBoxSub: { fontSize: 13, lineHeight: 18, marginBottom: 14 },
+  // Multi-stop styles
+  stopRow: { flexDirection: "row", gap: 10, marginBottom: 4 },
+  stopConnector: { width: 20, alignItems: "center", paddingTop: 22 },
+  stopDot: { width: 10, height: 10, borderRadius: 5 },
+  stopLine: { width: 2, flex: 1, minHeight: 16, marginTop: 2 },
+  stopInput: { flex: 1, gap: 2, marginBottom: 8 },
+  stopLabel: { fontSize: 10, fontWeight: "700", letterSpacing: 0.5 },
+  stopInputRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  stopField: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    fontSize: 15,
+  },
+  removeStopBtn: { width: 36, height: 36, borderRadius: 10, justifyContent: "center", alignItems: "center" },
+  addStopBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderRadius: 10,
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  addStopText: { fontSize: 13, fontWeight: "600" },
+  emptySection: { borderTopWidth: 1, paddingTop: 14, marginTop: 8, gap: 10 },
+  emptySectionTitle: { fontSize: 13, fontWeight: "700", marginBottom: 2 },
+  deadheadRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+  },
+  deadheadRowText: { fontSize: 12, fontWeight: "500", flex: 1 },
+  noLastDelivery: { fontSize: 12, fontStyle: "italic" },
+  toggleRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  toggle: { width: 40, height: 24, borderRadius: 12, position: "relative" },
+  toggleThumb: { position: "absolute", top: 2, width: 20, height: 20, borderRadius: 10, backgroundColor: "#fff" },
+  toggleLabel: { fontSize: 13, flex: 1, fontWeight: "500" },
   prevDeliveryHint: {
     flexDirection: "row",
     alignItems: "center",
