@@ -12,6 +12,7 @@ import {
   Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { DatePickerField } from "@/components/DatePickerField";
 import { router, useLocalSearchParams } from "expo-router";
 
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -340,12 +341,10 @@ export default function AddExpenseScreen() {
             />
           </View>
           <View style={s.half}>
-            <FormInput
-              label="Date"
+            <DatePickerField
+              label="DATE"
               value={date}
-              onChangeText={setDate}
-              placeholder="YYYY-MM-DD"
-              keyboardType="numbers-and-punctuation"
+              onChange={setDate}
             />
           </View>
         </View>
