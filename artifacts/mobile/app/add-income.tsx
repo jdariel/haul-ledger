@@ -23,14 +23,21 @@ import { SelectField } from "@/components/SelectField";
 import { useCreateIncome, useUpdateIncome, useIncomeEntry, useSavedRoutes, useIncome, useFleet } from "@/hooks/useApi";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { trackEntryAndRequestReview } from "@/lib/appReview";
+import { API_BASE_URL } from "@/constants/api";
+import { getAuthToken } from "@/hooks/useApi";
+
+function authHeaders() {
+  const token = getAuthToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 async function geocode(query: string): Promise<{ lat: number; lon: number } | null> {
   try {
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=us`;
-    const res = await fetch(url, { headers: { "User-Agent": "HaulLedger/1.0" } });
+    const url = `${API_BASE_URL}/geo/geocode?q=${encodeURIComponent(query)}`;
+    const res = await fetch(url, { headers: authHeaders() });
+    if (!res.ok) return null;
     const data = await res.json();
-    if (!data?.length) return null;
-    return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+    return data.result ?? null;
   } catch {
     return null;
   }
@@ -42,11 +49,11 @@ async function routeDistanceMulti(
   if (coords.length < 2) return null;
   try {
     const waypoints = coords.map(c => `${c.lon},${c.lat}`).join(";");
-    const url = `https://router.project-osrm.org/route/v1/driving/${waypoints}?overview=false`;
-    const res = await fetch(url);
+    const url = `${API_BASE_URL}/geo/route?coords=${encodeURIComponent(waypoints)}`;
+    const res = await fetch(url, { headers: authHeaders() });
+    if (!res.ok) return null;
     const data = await res.json();
-    if (data.code !== "Ok" || !data.routes?.length) return null;
-    return Math.round(data.routes[0].distance * 0.000621371);
+    return data.miles ?? null;
   } catch {
     return null;
   }

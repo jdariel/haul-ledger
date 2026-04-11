@@ -19,6 +19,13 @@ import { SelectField } from "@/components/SelectField";
 import { useCreateTrip, useUpdateTrip, useTrip, useTrips } from "@/hooks/useApi";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { trackEntryAndRequestReview } from "@/lib/appReview";
+import { API_BASE_URL } from "@/constants/api";
+import { getAuthToken } from "@/hooks/useApi";
+
+function authHeaders() {
+  const token = getAuthToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 const US_STATES = [
   "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA",
@@ -32,11 +39,11 @@ type Mode = "location" | "odometer";
 
 async function geocode(query: string): Promise<{ lat: number; lon: number } | null> {
   try {
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=us`;
-    const res = await fetch(url, { headers: { "User-Agent": "HaulLedger/1.0" } });
+    const url = `${API_BASE_URL}/geo/geocode?q=${encodeURIComponent(query)}`;
+    const res = await fetch(url, { headers: authHeaders() });
+    if (!res.ok) return null;
     const data = await res.json();
-    if (!data?.length) return null;
-    return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+    return data.result ?? null;
   } catch {
     return null;
   }
@@ -44,12 +51,12 @@ async function geocode(query: string): Promise<{ lat: number; lon: number } | nu
 
 async function routeDistance(from: { lat: number; lon: number }, to: { lat: number; lon: number }): Promise<number | null> {
   try {
-    const url = `https://router.project-osrm.org/route/v1/driving/${from.lon},${from.lat};${to.lon},${to.lat}?overview=false`;
-    const res = await fetch(url);
+    const waypoints = `${from.lon},${from.lat};${to.lon},${to.lat}`;
+    const url = `${API_BASE_URL}/geo/route?coords=${encodeURIComponent(waypoints)}`;
+    const res = await fetch(url, { headers: authHeaders() });
+    if (!res.ok) return null;
     const data = await res.json();
-    if (data.code !== "Ok" || !data.routes?.length) return null;
-    const meters = data.routes[0].distance;
-    return Math.round(meters * 0.000621371);
+    return data.miles ?? null;
   } catch {
     return null;
   }
