@@ -13,19 +13,14 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import { Platform } from "react-native";
 import { Colors } from "@/constants/colors";
 import { useExpense, useDeleteExpense } from "@/hooks/useApi";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useColorScheme } from "@/hooks/useColorScheme";
-
-const BASE_URL =
-  Platform.OS === "web"
-    ? "/api"
-    : `${process.env.EXPO_PUBLIC_DOMAIN ?? ""}/api`;
+import { API_BASE_URL } from "@/constants/api";
 
 function receiptImageUrl(objectPath: string): string {
-  return `${BASE_URL}/storage${objectPath}`;
+  return `${API_BASE_URL}/storage${objectPath}`;
 }
 
 const CATEGORY_ICONS: Record<string, { icon: string; color: string; bg: string }> = {
