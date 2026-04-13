@@ -80,7 +80,8 @@ export default function AddIncomeScreen() {
 
   const { data: existing, isLoading: loadingExisting } = useIncomeEntry(editId);
 
-  const today = new Date().toISOString().split("T")[0];
+  const d0 = new Date();
+  const today = `${d0.getFullYear()}-${String(d0.getMonth() + 1).padStart(2, "0")}-${String(d0.getDate()).padStart(2, "0")}`;
   const [date, setDate] = useState(today);
   const [source, setSource] = useState("");
   const [amount, setAmount] = useState("");

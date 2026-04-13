@@ -12,14 +12,17 @@ router.get("/", requireAuth, async (req, res) => {
     const period = (req.query.period as string) ?? "week";
 
     const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - now.getDay());
+    const dayOfWeek = startOfWeek.getDay();
+    startOfWeek.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
     startOfWeek.setHours(0, 0, 0, 0);
 
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
     const periodStart = period === "month" ? startOfMonth : startOfWeek;
-    const periodStr = periodStart.toISOString().split("T")[0];
-    const weekStr = startOfWeek.toISOString().split("T")[0];
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const toLocalDateStr = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const periodStr = toLocalDateStr(periodStart);
+    const weekStr = toLocalDateStr(startOfWeek);
 
     const [incomeResult] = await db
       .select({ total: sum(incomeTable.amount) })

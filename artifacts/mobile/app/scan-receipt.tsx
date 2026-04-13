@@ -129,7 +129,8 @@ export default function ScanReceiptScreen() {
         method: "POST",
         body: JSON.stringify({ imageBase64: base64, mimeType }),
       });
-      const today = new Date().toISOString().split("T")[0];
+      const _d = new Date();
+      const today = `${_d.getFullYear()}-${String(_d.getMonth() + 1).padStart(2, "0")}-${String(_d.getDate()).padStart(2, "0")}`;
 
       setParsed({
         merchant: data.merchant ?? "",
@@ -165,7 +166,7 @@ export default function ScanReceiptScreen() {
       category: parsed.category,
       merchant: parsed.merchant.trim(),
       amount,
-      date: parsed.date || new Date().toISOString().split("T")[0],
+      date: parsed.date || (() => { const _d2 = new Date(); return `${_d2.getFullYear()}-${String(_d2.getMonth() + 1).padStart(2, "0")}-${String(_d2.getDate()).padStart(2, "0")}`; })(),
       notes: "Scanned receipt",
       receiptUrl: parsed.receiptUrl ?? undefined,
     };

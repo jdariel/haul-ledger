@@ -21,9 +21,10 @@ router.get("/", requireAuth, async (req, res) => {
     if (req.query.week === "true") {
       const now = new Date();
       const startOfWeek = new Date(now);
-      startOfWeek.setDate(now.getDate() - now.getDay());
+      const dayOfWeek = now.getDay();
+      startOfWeek.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
       startOfWeek.setHours(0, 0, 0, 0);
-      expenses = expenses.filter((e) => new Date(e.date) >= startOfWeek);
+      expenses = expenses.filter((e) => new Date(e.date + "T00:00:00") >= startOfWeek);
     }
     if (req.query.search) {
       const search = (req.query.search as string).toLowerCase();

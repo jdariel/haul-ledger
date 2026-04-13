@@ -77,7 +77,8 @@ export default function AddTripScreen() {
   const { data: allTrips } = useTrips();
   const [prefilled, setPrefilled] = useState(false);
 
-  const today = new Date().toISOString().split("T")[0];
+  const d0 = new Date();
+  const today = `${d0.getFullYear()}-${String(d0.getMonth() + 1).padStart(2, "0")}-${String(d0.getDate()).padStart(2, "0")}`;
   const [mode, setMode] = useState<Mode>("location");
   const [date, setDate] = useState(today);
   const [jurisdiction, setJurisdiction] = useState("");
@@ -294,14 +295,14 @@ export default function AddTripScreen() {
                   ? <ActivityIndicator size="small" color="#fff" />
                   : <Ionicons name="navigate" size={15} color="#fff" />}
                 <Text style={s.calcBtnText}>
-                  {calculatingLoaded ? "Calculating…" : "Calculate Loaded Miles"}
+                  {calculatingLoaded ? "Estimating…" : "Estimate Loaded Miles"}
                 </Text>
               </TouchableOpacity>
               <FormInput
                 label="Loaded Miles"
                 value={loadedMiles}
                 onChangeText={setLoadedMiles}
-                placeholder="Auto-calculated or enter manually"
+                placeholder="Auto-estimated or enter manually"
                 keyboardType="decimal-pad"
               />
             </View>
@@ -331,7 +332,7 @@ export default function AddTripScreen() {
                   ? <ActivityIndicator size="small" color="#fff" />
                   : <Ionicons name="navigate" size={15} color="#fff" />}
                 <Text style={s.calcBtnText}>
-                  {calculatingEmpty ? "Calculating…" : "Calculate Empty Miles"}
+                  {calculatingEmpty ? "Estimating…" : "Estimate Empty Miles"}
                 </Text>
               </TouchableOpacity>
               <FormInput

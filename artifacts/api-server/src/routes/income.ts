@@ -22,9 +22,10 @@ router.get("/", requireAuth, async (req, res) => {
     if (req.query.week === "true") {
       const now = new Date();
       const startOfWeek = new Date(now);
-      startOfWeek.setDate(now.getDate() - now.getDay());
+      const dayOfWeek = now.getDay();
+      startOfWeek.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
       startOfWeek.setHours(0, 0, 0, 0);
-      income = income.filter((i) => new Date(i.date) >= startOfWeek);
+      income = income.filter((i) => new Date(i.date + "T00:00:00") >= startOfWeek);
     }
 
     res.json(income.map((i) => ({ ...i, createdAt: i.createdAt.toISOString() })));

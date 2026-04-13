@@ -93,7 +93,8 @@ export default function AddExpenseScreen() {
 
   const { data: existing, isLoading: loadingExisting } = useExpense(editId);
 
-  const today = new Date().toISOString().split("T")[0];
+  const d0 = new Date();
+  const today = `${d0.getFullYear()}-${String(d0.getMonth() + 1).padStart(2, "0")}-${String(d0.getDate()).padStart(2, "0")}`;
   const [date, setDate] = useState(today);
   const [merchant, setMerchant] = useState("");
   const [category, setCategory] = useState("Fuel");
