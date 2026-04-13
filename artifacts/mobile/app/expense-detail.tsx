@@ -62,7 +62,8 @@ const rowStyles = StyleSheet.create({
 
 export default function ExpenseDetailScreen() {
   const colorScheme = useColorScheme();
-  const C = Colors[colorScheme === "dark" ? "dark" : "light"];
+  const isDark = colorScheme === "dark";
+  const C = Colors[isDark ? "dark" : "light"];
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: expense, isLoading } = useExpense(id ? parseInt(id) : null);
   const deleteExpense = useDeleteExpense();
@@ -133,7 +134,7 @@ export default function ExpenseDetailScreen() {
       <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
         {/* Hero */}
         <View style={[s.hero, { backgroundColor: meta.bg }]}>
-          <View style={[s.heroIcon]}>
+          <View style={[s.heroIcon, { backgroundColor: isDark ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.65)" }]}>
             <Ionicons name={meta.icon as any} size={32} color={meta.color} />
           </View>
           <Text style={[s.heroAmount, { color: C.text }]}>
@@ -301,7 +302,6 @@ function makeStyles(C: typeof Colors.light) {
       width: 64,
       height: 64,
       borderRadius: 20,
-      backgroundColor: "rgba(255,255,255,0.6)",
       justifyContent: "center",
       alignItems: "center",
       marginBottom: 4,

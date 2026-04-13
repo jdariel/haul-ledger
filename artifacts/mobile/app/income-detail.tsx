@@ -38,7 +38,8 @@ const rowStyles = StyleSheet.create({
 
 export default function IncomeDetailScreen() {
   const colorScheme = useColorScheme();
-  const C = Colors[colorScheme === "dark" ? "dark" : "light"];
+  const isDark = colorScheme === "dark";
+  const C = Colors[isDark ? "dark" : "light"];
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: entry, isLoading } = useIncomeEntry(id ? parseInt(id) : null);
   const deleteIncome = useDeleteIncome();
@@ -95,7 +96,7 @@ export default function IncomeDetailScreen() {
       <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
         {/* Hero */}
         <View style={[s.hero, { backgroundColor: C.greenLight }]}>
-          <View style={s.heroIcon}>
+          <View style={[s.heroIcon, { backgroundColor: isDark ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.65)" }]}>
             <Ionicons name="trending-up" size={32} color={C.green} />
           </View>
           <Text style={[s.heroAmount, { color: C.green }]}>
@@ -216,7 +217,6 @@ function makeStyles(C: typeof Colors.light) {
       width: 64,
       height: 64,
       borderRadius: 20,
-      backgroundColor: "rgba(255,255,255,0.6)",
       justifyContent: "center",
       alignItems: "center",
       marginBottom: 4,

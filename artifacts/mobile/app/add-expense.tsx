@@ -465,7 +465,7 @@ const s = StyleSheet.create({
     marginBottom: 20,
   },
   receiptPreviewLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
-  receiptThumb: { width: 44, height: 44, borderRadius: 8, backgroundColor: "#e5e7eb" },
+  receiptThumb: { width: 44, height: 44, borderRadius: 8 },
   aiBadge: {
     flexDirection: "row",
     alignItems: "center",
