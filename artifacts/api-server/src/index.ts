@@ -6,8 +6,10 @@ initSentry();
 
 import app from "./app";
 import { startScheduler } from "./scheduler";
+import { syncIncomeTrips } from "./lib/syncIncomeTrips";
 
 app.listen(config.port, () => {
   console.log(`Server listening on port ${config.port}`);
   startScheduler();
+  syncIncomeTrips();
 });
