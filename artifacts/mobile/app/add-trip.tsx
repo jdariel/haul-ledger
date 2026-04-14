@@ -87,6 +87,7 @@ export default function AddTripScreen() {
   const [pickupLocation, setPickupLocation] = useState("");
   const [deliveryLocation, setDeliveryLocation] = useState("");
   const [emptyFromLocation, setEmptyFromLocation] = useState("");
+  const [emptyFromUserEdited, setEmptyFromUserEdited] = useState(false);
   const [loadedMiles, setLoadedMiles] = useState("");
   const [emptyMiles, setEmptyMiles] = useState("");
   const [calculatingLoaded, setCalculatingLoaded] = useState(false);
@@ -116,6 +117,7 @@ export default function AddTripScreen() {
         setMode("location");
       }
       if (existing.deliveryLocation) setDeliveryLocation(existing.deliveryLocation);
+      if (existing.emptyFromLocation) { setEmptyFromLocation(existing.emptyFromLocation); setEmptyFromUserEdited(true); }
       setPrefilled(true);
     }
   }, [existing]);
@@ -173,13 +175,14 @@ export default function AddTripScreen() {
 
   useEffect(() => {
     if (mode !== "location") return;
+    if (!emptyFromUserEdited) return;
     if (emptyDebounceRef.current) clearTimeout(emptyDebounceRef.current);
     if (!emptyFromLocation.trim() || !pickupLocation.trim()) return;
     emptyDebounceRef.current = setTimeout(() => {
       runCalcEmpty(emptyFromLocation, pickupLocation);
     }, 1000);
     return () => { if (emptyDebounceRef.current) clearTimeout(emptyDebounceRef.current); };
-  }, [emptyFromLocation, pickupLocation, mode]);
+  }, [emptyFromLocation, pickupLocation, mode, emptyFromUserEdited]);
 
   const calcOdometerMiles = () => {
     const start = parseFloat(startOdo);
@@ -335,14 +338,27 @@ export default function AddTripScreen() {
                 <Text style={[s.sectionLabel, { color: C.orange }]}>EMPTY LEG (Deadhead)</Text>
               </View>
               <Text style={[s.hint, { color: C.textSecondary }]}>
-                Where did you drive from (empty) to reach the pickup?
+                Where did you drive from (empty) to reach the pickup? Edit the location to auto-calculate, or enter miles manually.
               </Text>
-              <FormInput
-                label="Drove empty from"
-                value={emptyFromLocation}
-                onChangeText={setEmptyFromLocation}
-                placeholder="Previous delivery city (auto-filled)"
-              />
+              <View style={s.emptyFromRow}>
+                <View style={{ flex: 1 }}>
+                  <FormInput
+                    label="Drove empty from"
+                    value={emptyFromLocation}
+                    onChangeText={(v) => { setEmptyFromLocation(v); setEmptyFromUserEdited(true); }}
+                    placeholder="e.g. your yard or last delivery city"
+                  />
+                </View>
+                {emptyFromLocation.trim() ? (
+                  <TouchableOpacity
+                    style={s.clearEmptyBtn}
+                    onPress={() => { setEmptyFromLocation(""); setEmptyFromUserEdited(false); setEmptyMiles(""); }}
+                    hitSlop={8}
+                  >
+                    <Ionicons name="close-circle" size={20} color={C.textMuted} />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
               <View style={s.milesFieldWrap}>
                 <View style={s.milesFieldHeader}>
                   <Text style={[s.fieldLabel, { color: C.textSecondary }]}>Empty Miles</Text>
@@ -354,7 +370,7 @@ export default function AddTripScreen() {
                   ) : (emptyFromLocation.trim() && pickupLocation.trim()) ? (
                     <TouchableOpacity
                       style={s.recalcBtn}
-                      onPress={() => runCalcEmpty(emptyFromLocation, pickupLocation)}
+                      onPress={() => { setEmptyFromUserEdited(true); runCalcEmpty(emptyFromLocation, pickupLocation); }}
                       hitSlop={8}
                     >
                       <Ionicons name="refresh-outline" size={13} color={C.orange} />
@@ -551,6 +567,8 @@ const s = StyleSheet.create({
     marginVertical: 4,
   },
   calcBtnText: { color: "#fff", fontSize: 13, fontWeight: "700" },
+  emptyFromRow: { flexDirection: "row", alignItems: "flex-end", gap: 6 },
+  clearEmptyBtn: { paddingBottom: 12 },
   milesFieldWrap: { marginBottom: 4 },
   milesFieldHeader: {
     flexDirection: "row",
