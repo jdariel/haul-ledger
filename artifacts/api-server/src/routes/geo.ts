@@ -23,22 +23,44 @@ function estimateMiles(points: Array<{ lat: number; lon: number }>): number {
   return Math.round(totalKm * 0.621371 * CIRCUITY);
 }
 
+function normalizeLocation(q: string): string {
+  return q
+    .replace(/([a-z])([A-Z])/g, "$1 $2")   // PortNorris → Port Norris
+    .replace(/([A-Z])([A-Z][a-z])/g, "$1 $2") // FTWorth → FT Worth edge cases
+    .replace(/,([^ ])/g, ", $1")              // City,ST → City, ST
+    .trim();
+}
+
+async function nominatimSearch(query: string): Promise<Array<{ lat: string; lon: string }>> {
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=us,ca,mx`;
+  const resp = await fetch(url, {
+    headers: {
+      "User-Agent": "HaulLedger/1.0 (server-proxy)",
+      "Accept": "application/json",
+      "Accept-Language": "en-US,en;q=0.9",
+    },
+  });
+  if (!resp.ok) return [];
+  return (await resp.json()) as Array<{ lat: string; lon: string }>;
+}
+
 router.get("/geocode", requireAuth, async (req, res) => {
   const q = req.query.q as string;
   if (!q?.trim()) return res.status(400).json({ error: "Missing query" });
 
   try {
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1`;
-    const resp = await fetch(url, {
-      headers: {
-        "User-Agent": "HaulLedger/1.0 (server-proxy)",
-        "Accept": "application/json",
-        "Accept-Language": "en-US,en;q=0.9",
-      },
-    });
-    if (!resp.ok) return res.status(502).json({ error: "Geocode service error" });
-    const data = await resp.json() as Array<{ lat: string; lon: string }>;
-    if (!data?.length) return res.json({ result: null });
+    // First attempt: exact query
+    let data = await nominatimSearch(q);
+
+    // Fallback: normalize CamelCase and spacing (e.g. "PortNorris,NJ" → "Port Norris, NJ")
+    if (!data.length) {
+      const normalized = normalizeLocation(q);
+      if (normalized !== q) {
+        data = await nominatimSearch(normalized);
+      }
+    }
+
+    if (!data.length) return res.json({ result: null });
     return res.json({ result: { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) } });
   } catch (err) {
     return res.status(502).json({ error: "Geocode fetch failed" });
