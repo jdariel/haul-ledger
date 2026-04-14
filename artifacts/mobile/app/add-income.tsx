@@ -95,6 +95,9 @@ export default function AddIncomeScreen() {
   const [loadedMiles, setLoadedMiles] = useState<number | null>(null);
   const [emptyMiles, setEmptyMiles] = useState<number | null>(null);
   const [emptyFromLabel, setEmptyFromLabel] = useState<string | null>(null);
+  // Deadhead FROM — editable, pre-fills from last delivery but user can change or clear
+  const [deadheadFrom, setDeadheadFrom] = useState<string>("");
+  const [deadheadFromInitialized, setDeadheadFromInitialized] = useState(false);
   // Deadhead TO — optional parking/terminal after final delivery
   const [deadheadToEnabled, setDeadheadToEnabled] = useState(false);
   const [parkingLocation, setParkingLocation] = useState("");
@@ -130,6 +133,13 @@ export default function AddIncomeScreen() {
     const last = sorted.find((e: any) => e.deliveryLocation);
     return last?.deliveryLocation ?? null;
   })();
+
+  useEffect(() => {
+    if (!deadheadFromInitialized && lastDelivery) {
+      setDeadheadFrom(lastDelivery);
+      setDeadheadFromInitialized(true);
+    }
+  }, [lastDelivery, deadheadFromInitialized]);
 
   const routeOptions = [
     { label: "Pick a saved route…", value: "" },
@@ -179,15 +189,15 @@ export default function AddIncomeScreen() {
       }
       setLoadedMiles(loaded);
 
-      // Empty FROM: last delivery → first stop (pickup)
+      // Empty FROM: deadhead location → first stop (pickup)
       let totalEmpty = 0;
-      if (lastDelivery) {
-        const lastCoord = await geocode(lastDelivery);
+      if (deadheadFrom.trim()) {
+        const lastCoord = await geocode(deadheadFrom.trim());
         if (lastCoord) {
           const emptyFrom = await routeDistanceMulti([lastCoord, coords[0]!]);
           if (emptyFrom != null) {
             totalEmpty += emptyFrom;
-            setEmptyFromLabel(lastDelivery);
+            setEmptyFromLabel(deadheadFrom.trim());
           }
         }
       }
@@ -427,17 +437,29 @@ export default function AddIncomeScreen() {
           <View style={[s.emptySection, { borderTopColor: C.separator }]}>
             <Text style={[s.emptySectionTitle, { color: C.text }]}>Empty Miles (Deadhead)</Text>
 
-            {/* Empty FROM — auto from last delivery */}
-            {lastDelivery ? (
-              <View style={[s.deadheadRow, { backgroundColor: C.tealLight, borderColor: C.teal + "40" }]}>
-                <Ionicons name="arrow-forward-circle-outline" size={16} color={C.teal} />
-                <Text style={[s.deadheadRowText, { color: C.teal }]} numberOfLines={1}>
-                  Coming from: {lastDelivery}
-                </Text>
+            {/* Empty FROM — editable deadhead from location */}
+            <View style={s.deadheadFromRow}>
+              <View style={{ flex: 1 }}>
+                <FormInput
+                  label="DROVE EMPTY FROM"
+                  value={deadheadFrom}
+                  onChangeText={(v) => { setDeadheadFrom(v); resetMiles(); }}
+                  placeholder={lastDelivery ? lastDelivery : "e.g. Dallas, TX"}
+                />
               </View>
-            ) : (
+              {deadheadFrom.trim() ? (
+                <TouchableOpacity
+                  style={s.clearDeadheadBtn}
+                  onPress={() => { setDeadheadFrom(""); resetMiles(); }}
+                  hitSlop={8}
+                >
+                  <Ionicons name="close-circle" size={20} color={C.textMuted} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+            {!deadheadFrom.trim() && (
               <Text style={[s.noLastDelivery, { color: C.textMuted }]}>
-                No prior delivery found — empty miles from will not be calculated.
+                Leave blank to skip empty miles calculation.
               </Text>
             )}
 
@@ -643,6 +665,8 @@ const s = StyleSheet.create({
     borderWidth: 1,
   },
   deadheadRowText: { fontSize: 12, fontWeight: "500", flex: 1 },
+  deadheadFromRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  clearDeadheadBtn: { marginTop: 18, padding: 4 },
   noLastDelivery: { fontSize: 12, fontStyle: "italic" },
   toggleRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   toggle: { width: 40, height: 24, borderRadius: 12, position: "relative" },
