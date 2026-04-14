@@ -6,14 +6,50 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { Colors } from "@/constants/colors";
-import { useIncomeEntry, useDeleteIncome } from "@/hooks/useApi";
+import { useIncomeEntry, useDeleteIncome, useUpdateIncome, getAuthToken } from "@/hooks/useApi";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useColorScheme } from "@/hooks/useColorScheme";
+import { API_BASE_URL } from "@/constants/api";
+
+function authHeaders() {
+  const token = getAuthToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+async function geocode(query: string): Promise<{ lat: number; lon: number } | null> {
+  try {
+    const url = `${API_BASE_URL}/geo/geocode?q=${encodeURIComponent(query)}`;
+    const res = await fetch(url, { headers: authHeaders() });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.result ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function routeDistance(
+  from: { lat: number; lon: number },
+  to: { lat: number; lon: number }
+): Promise<number | null> {
+  try {
+    const waypoints = `${from.lon},${from.lat};${to.lon},${to.lat}`;
+    const url = `${API_BASE_URL}/geo/route?coords=${encodeURIComponent(waypoints)}`;
+    const res = await fetch(url, { headers: authHeaders() });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.miles ?? null;
+  } catch {
+    return null;
+  }
+}
 
 function Row({ label, value, C }: { label: string; value?: string | null; C: typeof Colors.light }) {
   if (!value) return null;
@@ -43,9 +79,41 @@ export default function IncomeDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: entry, isLoading } = useIncomeEntry(id ? parseInt(id) : null);
   const deleteIncome = useDeleteIncome();
+  const updateIncome = useUpdateIncome();
+  const qc = useQueryClient();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
 
   const s = makeStyles(C);
+
+  const handleRecalculate = async () => {
+    if (!entry?.pickupLocation || !entry?.deliveryLocation) return;
+    setRecalculating(true);
+    try {
+      const [fromCoord, toCoord] = await Promise.all([
+        geocode(entry.pickupLocation),
+        geocode(entry.deliveryLocation),
+      ]);
+      if (!fromCoord || !toCoord) {
+        Alert.alert("Location not found", "Could not geocode one or both locations. You can edit this entry to update manually.");
+        return;
+      }
+      const miles = await routeDistance(fromCoord, toCoord);
+      if (miles == null) {
+        Alert.alert("Route error", "Could not calculate route distance.");
+        return;
+      }
+      await updateIncome.mutateAsync({
+        id: parseInt(id!),
+        data: { loadedMiles: miles },
+      });
+      qc.invalidateQueries({ queryKey: ["income-entry", parseInt(id!)] });
+    } catch {
+      Alert.alert("Error", "Something went wrong. Try again.");
+    } finally {
+      setRecalculating(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -74,6 +142,11 @@ export default function IncomeDetailScreen() {
         year: "numeric",
       })
     : "—";
+
+  const hasLocations = !!(entry.pickupLocation && entry.deliveryLocation);
+  const hasMiles = entry.loadedMiles != null;
+  const showCalcBanner = hasLocations && !hasMiles;
+  const showRecalcLink = hasLocations && hasMiles;
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
@@ -111,10 +184,27 @@ export default function IncomeDetailScreen() {
         </View>
 
         {/* Route & Miles Card */}
-        {(entry.pickupLocation || entry.deliveryLocation || entry.loadedMiles != null) && (
+        {(hasLocations || hasMiles) && (
           <View style={[s.card, { backgroundColor: C.card, borderColor: C.separator }]}>
-            <Text style={[s.sectionTitle, { color: C.text }]}>Route & Miles</Text>
+            <View style={s.cardTitleRow}>
+              <Text style={[s.sectionTitle, { color: C.text }]}>Route & Miles</Text>
+              {showRecalcLink && (
+                <TouchableOpacity
+                  style={s.recalcLink}
+                  onPress={handleRecalculate}
+                  disabled={recalculating}
+                >
+                  {recalculating
+                    ? <ActivityIndicator size="small" color={C.teal} />
+                    : <Ionicons name="refresh-outline" size={14} color={C.teal} />}
+                  <Text style={[s.recalcLinkText, { color: C.teal }]}>
+                    {recalculating ? "Calculating…" : "Recalculate"}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
             <View style={[s.divider, { backgroundColor: C.separator }]} />
+
             {entry.pickupLocation && entry.deliveryLocation && (
               <View style={s.routeRow}>
                 <View style={s.routeStop}>
@@ -128,7 +218,37 @@ export default function IncomeDetailScreen() {
                 </View>
               </View>
             )}
-            {entry.loadedMiles != null && (
+
+            {/* Calculate banner for entries missing miles */}
+            {showCalcBanner && (
+              <TouchableOpacity
+                style={[s.calcBanner, { backgroundColor: C.teal + "18", borderColor: C.teal + "40" }]}
+                onPress={handleRecalculate}
+                disabled={recalculating}
+                activeOpacity={0.8}
+              >
+                {recalculating ? (
+                  <ActivityIndicator size="small" color={C.teal} />
+                ) : (
+                  <Ionicons name="navigate-outline" size={18} color={C.teal} />
+                )}
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.calcBannerTitle, { color: C.teal }]}>
+                    {recalculating ? "Calculating miles…" : "No miles recorded"}
+                  </Text>
+                  {!recalculating && (
+                    <Text style={[s.calcBannerSub, { color: C.textSecondary }]}>
+                      Tap to estimate from {entry.pickupLocation} → {entry.deliveryLocation}
+                    </Text>
+                  )}
+                </View>
+                {!recalculating && (
+                  <Ionicons name="chevron-forward" size={16} color={C.teal} />
+                )}
+              </TouchableOpacity>
+            )}
+
+            {hasMiles && (
               <View style={s.milesRow}>
                 <View style={s.milesStat}>
                   <Text style={[s.milesNum, { color: C.teal }]}>{entry.loadedMiles}</Text>
@@ -236,7 +356,14 @@ function makeStyles(C: typeof Colors.light) {
       padding: 16,
       gap: 12,
     },
+    cardTitleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
     sectionTitle: { fontSize: 15, fontWeight: "700" },
+    recalcLink: { flexDirection: "row", alignItems: "center", gap: 5 },
+    recalcLinkText: { fontSize: 13, fontWeight: "600" },
     divider: { height: 1, marginHorizontal: -16 },
     rowDivider: { height: 1 },
     routeRow: { paddingVertical: 12, gap: 6 },
@@ -244,6 +371,16 @@ function makeStyles(C: typeof Colors.light) {
     routeDot: { width: 10, height: 10, borderRadius: 5 },
     routeLine: { width: 2, height: 20, marginLeft: 4 },
     routeCity: { fontSize: 14, fontWeight: "600" },
+    calcBanner: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      padding: 14,
+      borderRadius: 12,
+      borderWidth: 1,
+    },
+    calcBannerTitle: { fontSize: 14, fontWeight: "700" },
+    calcBannerSub: { fontSize: 12, marginTop: 2 },
     milesRow: {
       flexDirection: "row",
       alignItems: "center",
