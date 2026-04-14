@@ -105,7 +105,18 @@ export default function IncomeDetailScreen() {
       }
       await updateIncome.mutateAsync({
         id: parseInt(id!),
-        data: { loadedMiles: miles },
+        data: {
+          date: entry.date,
+          source: entry.source,
+          amount: entry.amount,
+          pickupLocation: entry.pickupLocation,
+          deliveryLocation: entry.deliveryLocation,
+          loadedMiles: miles,
+          emptyMiles: entry.emptyMiles,
+          trailerNumber: entry.trailerNumber,
+          routeName: entry.routeName,
+          notes: entry.notes,
+        },
       });
       qc.invalidateQueries({ queryKey: ["income-entry", parseInt(id!)] });
     } catch {
