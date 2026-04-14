@@ -76,6 +76,7 @@ export type FuelEntry = typeof fuelEntriesTable.$inferSelect;
 export const tripsTable = pgTable("trips", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => usersTable.id),
+  incomeId: integer("income_id").references(() => incomeTable.id, { onDelete: "set null" }),
   date: text("date").notNull(),
   pickupLocation: text("pickup_location"),
   deliveryLocation: text("delivery_location"),
