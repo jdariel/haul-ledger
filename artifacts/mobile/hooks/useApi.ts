@@ -37,10 +37,15 @@ async function apiFetch(path: string, options?: RequestInit) {
   if (!response.ok) {
     let message = `HTTP ${response.status}`;
     try {
-      const body = await response.json();
-      message = body.error || message;
+      const text = await response.text();
+      try {
+        const body = JSON.parse(text);
+        message = body.error || message;
+      } catch {
+        message = text || message;
+      }
     } catch {
-      message = (await response.text()) || message;
+      // ignore — use default HTTP status message
     }
     throw new Error(message);
   }
@@ -334,6 +339,166 @@ export function useIFTA(quarter: number, year: number) {
   return useQuery({
     queryKey: ["ifta", quarter, year],
     queryFn: () => apiFetch(`/ifta?quarter=${quarter}&year=${year}`),
+  });
+}
+
+// ── Cost Settings ─────────────────────────────────────────────────────────────
+
+export function useCostSettings() {
+  return useQuery({
+    queryKey: ["cost-settings"],
+    queryFn: () => apiFetch("/cost-settings"),
+  });
+}
+
+export function useCostAnalysis() {
+  return useQuery({
+    queryKey: ["cost-analysis"],
+    queryFn: () => apiFetch("/cost-settings/analysis"),
+  });
+}
+
+export function useCreateCostSetting() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { label: string; amount: number; frequency: string }) =>
+      apiFetch("/cost-settings", { method: "POST", body: JSON.stringify(data) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cost-settings"] });
+      qc.invalidateQueries({ queryKey: ["cost-analysis"] });
+    },
+  });
+}
+
+export function useUpdateCostSetting() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Partial<{ label: string; amount: number; frequency: string }> }) =>
+      apiFetch(`/cost-settings/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cost-settings"] });
+      qc.invalidateQueries({ queryKey: ["cost-analysis"] });
+    },
+  });
+}
+
+export function useDeleteCostSetting() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiFetch(`/cost-settings/${id}`, { method: "DELETE" }),
+    onMutate: async (id: number) => {
+      await qc.cancelQueries({ queryKey: ["cost-settings"] });
+      const previous = qc.getQueryData(["cost-settings"]);
+      qc.setQueryData(["cost-settings"], (old: any[]) =>
+        Array.isArray(old) ? old.filter((item) => item.id !== id) : old,
+      );
+      return { previous };
+    },
+    onError: (_err, _id, context: any) => {
+      if (context?.previous !== undefined) {
+        qc.setQueryData(["cost-settings"], context.previous);
+      }
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["cost-settings"] });
+      qc.invalidateQueries({ queryKey: ["cost-analysis"] });
+    },
+  });
+}
+
+export function useLogCostToExpense() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, date }: { id: number; date?: string }) =>
+      apiFetch(`/cost-settings/${id}/log-expense`, { method: "POST", body: JSON.stringify({ date }) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["expenses"] });
+      qc.invalidateQueries({ queryKey: ["cost-analysis"] });
+    },
+  });
+}
+
+export function useLogAllCostsToExpenses() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (date?: string) =>
+      apiFetch("/cost-settings/log-all", { method: "POST", body: JSON.stringify({ date }) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["expenses"] });
+      qc.invalidateQueries({ queryKey: ["cost-analysis"] });
+    },
+  });
+}
+
+// ── Fleet ─────────────────────────────────────────────────────────────────────
+
+export function useFleet() {
+  return useQuery({
+    queryKey: ["fleet"],
+    queryFn: () => apiFetch("/fleet"),
+  });
+}
+
+export function useFleetOverview() {
+  const { data: fleet } = useFleet();
+  return useQuery({
+    queryKey: ["fleet-overview"],
+    queryFn: () => apiFetch("/fleet/overview"),
+    enabled: fleet?.role === "owner",
+  });
+}
+
+export function useCreateFleet() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) =>
+      apiFetch("/fleet", { method: "POST", body: JSON.stringify({ name }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["fleet"] }),
+  });
+}
+
+export function useJoinFleet() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (inviteCode: string) =>
+      apiFetch("/fleet/join", { method: "POST", body: JSON.stringify({ inviteCode }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["fleet"] }),
+  });
+}
+
+export function useLeaveFleet() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiFetch("/fleet/leave", { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["fleet"] }),
+  });
+}
+
+export function useDeleteFleet() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiFetch("/fleet", { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["fleet"] }),
+  });
+}
+
+export function useRemoveFleetMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: number) => apiFetch(`/fleet/members/${userId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["fleet"] });
+      qc.invalidateQueries({ queryKey: ["fleet-overview"] });
+    },
+  });
+}
+
+export function useUpdateUserSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { targetMonthlyMiles?: number | null }) =>
+      apiFetch("/auth/settings", { method: "PATCH", body: JSON.stringify(data) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["cost-analysis"] }),
   });
 }
 

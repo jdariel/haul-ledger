@@ -11,6 +11,7 @@ interface AppSettings {
 
 interface AppContextType {
   settings: AppSettings;
+  settingsLoaded: boolean;
   updateSettings: (updates: Partial<AppSettings>) => Promise<void>;
 }
 
@@ -24,11 +25,13 @@ const defaultSettings: AppSettings = {
 
 const AppContext = createContext<AppContextType>({
   settings: defaultSettings,
+  settingsLoaded: false,
   updateSettings: async () => {},
 });
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -42,6 +45,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     } catch (e) {
       console.warn("Failed to load settings", e);
+    } finally {
+      setSettingsLoaded(true);
     }
   };
 
@@ -56,7 +61,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AppContext.Provider value={{ settings, updateSettings }}>
+    <AppContext.Provider value={{ settings, settingsLoaded, updateSettings }}>
       {children}
     </AppContext.Provider>
   );

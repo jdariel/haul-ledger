@@ -17,6 +17,18 @@ const router = Router();
 const { jwtSecret: JWT_SECRET, resendApiKey } = config;
 const JWT_EXPIRES = "30d";
 const MIN_PASSWORD_LENGTH = 8;
+
+function validatePasswordStrength(password: string): string | null {
+  if (typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH) {
+    return `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
+  }
+  if (!/[A-Z]/.test(password)) return "Password must contain at least one uppercase letter (A–Z).";
+  if (!/[a-z]/.test(password)) return "Password must contain at least one lowercase letter (a–z).";
+  if (!/[0-9]/.test(password)) return "Password must contain at least one number (0–9).";
+  if (!/[^A-Za-z0-9]/.test(password)) return "Password must contain at least one special character (!@#$…).";
+  return null;
+}
+
 const FROM_EMAIL = "HaulLedger <onboarding@resend.dev>";
 
 function getResend() {
@@ -81,9 +93,8 @@ router.post("/register", authLimiter, async (req, res) => {
     if (!validateEmail(email)) {
       return res.status(400).json({ error: "Please enter a valid email address." });
     }
-    if (!password || typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH) {
-      return res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.` });
-    }
+    const pwErr = validatePasswordStrength(password);
+    if (pwErr) return res.status(400).json({ error: pwErr });
 
     const existing = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, email));
     if (existing.length > 0) {
@@ -237,9 +248,8 @@ router.post("/reset-password", authLimiter, async (req, res) => {
     if (!resetToken || !newPassword) {
       return res.status(400).json({ error: "Reset token and new password are required." });
     }
-    if (typeof newPassword !== "string" || newPassword.length < MIN_PASSWORD_LENGTH) {
-      return res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.` });
-    }
+    const pwErrReset = validatePasswordStrength(newPassword);
+    if (pwErrReset) return res.status(400).json({ error: pwErrReset });
 
     const entry = resetStore.get(resetToken);
     if (!entry || entry.expiresAt < new Date()) {
@@ -286,6 +296,30 @@ router.patch("/profile", requireAuth, async (req, res) => {
   }
 });
 
+// PATCH /api/auth/settings — update user preferences (targetMonthlyMiles, etc.)
+router.patch("/settings", requireAuth, async (req, res) => {
+  const { targetMonthlyMiles } = req.body as { targetMonthlyMiles?: number | null };
+  const updates: Record<string, any> = {};
+  if (targetMonthlyMiles !== undefined) {
+    if (targetMonthlyMiles !== null && (typeof targetMonthlyMiles !== "number" || targetMonthlyMiles < 0)) {
+      res.status(400).json({ error: "targetMonthlyMiles must be a non-negative number or null." });
+      return;
+    }
+    updates.targetMonthlyMiles = targetMonthlyMiles === null ? null : Math.round(targetMonthlyMiles);
+  }
+  if (Object.keys(updates).length === 0) {
+    res.status(400).json({ error: "No valid fields to update." });
+    return;
+  }
+  try {
+    await db.update(usersTable).set(updates).where(eq(usersTable.id, req.user!.id));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("settings update error:", err);
+    res.status(500).json({ error: "Failed to update settings." });
+  }
+});
+
 // PATCH /api/auth/push-token — register or clear the device's Expo push token
 router.patch("/push-token", requireAuth, async (req, res) => {
   const { token } = req.body as { token?: string | null };
@@ -316,9 +350,8 @@ router.patch("/change-password", requireAuth, authLimiter, async (req, res) => {
     if (!currentPassword || !newPassword) {
       return res.status(400).json({ error: "Current and new passwords are required." });
     }
-    if (typeof newPassword !== "string" || newPassword.length < MIN_PASSWORD_LENGTH) {
-      return res.status(400).json({ error: `New password must be at least ${MIN_PASSWORD_LENGTH} characters.` });
-    }
+    const pwErrChange = validatePasswordStrength(newPassword);
+    if (pwErrChange) return res.status(400).json({ error: pwErrChange });
     if (currentPassword === newPassword) {
       return res.status(400).json({ error: "New password must be different from your current password." });
     }
@@ -328,7 +361,7 @@ router.patch("/change-password", requireAuth, authLimiter, async (req, res) => {
 
     const valid = await bcrypt.compare(currentPassword, user.passwordHash);
     if (!valid) {
-      return res.status(401).json({ error: "Current password is incorrect." });
+      return res.status(400).json({ error: "Current password is incorrect." });
     }
 
     const newHash = await bcrypt.hash(newPassword, 12);

@@ -31,21 +31,28 @@ function getWeekBounds(offset: number) {
   return { start: monday, end: sunday };
 }
 
+function parseLocalDate(str: string): Date {
+  // "YYYY-MM-DD" strings must be treated as local midnight, not UTC midnight
+  return str.length === 10 ? new Date(str + "T00:00:00") : new Date(str);
+}
+
 function fmtDate(d: Date) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
 const CATEGORIES = ["All", "Fuel", "Maintenance", "Lumper", "Tolls", "Parking", "Scale Fee", "Other"];
 
-const CATEGORY_ICONS: Record<string, { icon: string; color: string; bg: string }> = {
-  Fuel: { icon: "flame", color: "#f59e0b", bg: "#fef3c7" },
-  Maintenance: { icon: "construct", color: "#8b5cf6", bg: "#ede9fe" },
-  Lumper: { icon: "people", color: "#3b82f6", bg: "#eff6ff" },
-  Tolls: { icon: "car", color: "#6b7280", bg: "#f3f4f6" },
-  Parking: { icon: "location", color: "#14b8a6", bg: "#ccfbf1" },
-  "Scale Fee": { icon: "scale", color: "#f97316", bg: "#fff7ed" },
-  Other: { icon: "ellipsis-horizontal", color: "#6b7280", bg: "#f3f4f6" },
-};
+function getCategoryIcons(C: typeof Colors.light): Record<string, { icon: string; color: string; bg: string }> {
+  return {
+    Fuel: { icon: "flame", color: C.orange, bg: C.orangeLight },
+    Maintenance: { icon: "construct", color: C.purple, bg: C.purpleLight },
+    Lumper: { icon: "people", color: C.blue2, bg: C.blue2Light },
+    Tolls: { icon: "car", color: C.textSecondary, bg: C.neutralBg },
+    Parking: { icon: "location", color: C.teal, bg: C.tealLight },
+    "Scale Fee": { icon: "scale", color: C.orange, bg: C.orangeLight },
+    Other: { icon: "ellipsis-horizontal", color: C.textSecondary, bg: C.neutralBg },
+  };
+}
 
 export default function ExpensesScreen() {
   const colorScheme = useColorScheme();
@@ -78,11 +85,11 @@ export default function ExpensesScreen() {
     if (filterCategory !== "All" && e.category !== filterCategory) return false;
     if (search && !e.merchant?.toLowerCase().includes(search.toLowerCase())) return false;
     if (view === "week") {
-      const d = new Date(e.date || e.createdAt);
+      const d = parseLocalDate(e.date || e.createdAt);
       return d >= start && d <= end;
     }
     if (view === "custom" && customStart && customEnd) {
-      const d = new Date(e.date || e.createdAt);
+      const d = parseLocalDate(e.date || e.createdAt);
       return d >= customStart && d <= customEnd;
     }
     return true;
@@ -95,6 +102,7 @@ export default function ExpensesScreen() {
 
 
   const s = makeStyles(C);
+  const CATEGORY_ICONS = getCategoryIcons(C);
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
@@ -250,7 +258,7 @@ export default function ExpensesScreen() {
                   <View style={s.expInfo}>
                     <Text style={[s.expMerchant, { color: C.text }]}>{e.merchant || e.category}</Text>
                     <Text style={[s.expMeta, { color: C.textSecondary }]}>
-                      {e.category} · {new Date(e.date || e.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                      {e.category} · {parseLocalDate(e.date || e.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                     </Text>
                   </View>
                   <View style={s.expRight}>

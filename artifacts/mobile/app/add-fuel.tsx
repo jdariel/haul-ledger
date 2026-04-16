@@ -26,7 +26,8 @@ export default function AddFuelScreen() {
   const insets = useSafeAreaInsets();
   const createFuel = useCreateFuelEntry();
 
-  const today = new Date().toISOString().split("T")[0];
+  const _d0 = new Date();
+  const today = `${_d0.getFullYear()}-${String(_d0.getMonth() + 1).padStart(2, "0")}-${String(_d0.getDate()).padStart(2, "0")}`;
   const [date, setDate] = useState(today);
   const [vendor, setVendor] = useState("");
   const [gallons, setGallons] = useState("");

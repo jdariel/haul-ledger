@@ -68,9 +68,8 @@ onlyBuiltDependencies:
   - unrs-resolver
 
 overrides:
-  # replit uses linux-x64 only, we can exclude all other platforms
-  "esbuild>@esbuild/darwin-arm64": "-"
-  "esbuild>@esbuild/darwin-x64": "-"
+  # replit uses linux-x64 only, we can exclude most other platforms
+  # NOTE: darwin binaries are NOT excluded so EAS iOS builds (macOS) work correctly
   "esbuild>@esbuild/freebsd-arm64": "-"
   "esbuild>@esbuild/freebsd-x64": "-"
   "esbuild>@esbuild/linux-arm": "-"

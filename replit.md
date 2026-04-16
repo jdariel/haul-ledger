@@ -45,7 +45,8 @@ artifacts-monorepo/
 - **Expenses**: Full list with category filter, week/all toggle, merchant search, swipe-to-delete
 - **Income**: Income entries with swipe-to-delete
 - **Reports**: IFTA report (miles/fuel by jurisdiction), Schedule C (income/expense by category) with CSV export
-- **More Tab**: Fleet assets, fuel log, trip log, saved routes, and settings
+- **More Tab**: Assets, fuel log, trip log, saved routes, fleet management, and settings
+- **Fleet Management**: Create/join/manage fleets; owners see per-driver stats (income, expenses, trips, recent entries); drivers join via invite code; `/api/fleet/*` routes protected by `requireAuth`
 - **Modal Forms**: Add expense, income, fuel entry, trip, fleet asset, and saved route
 - **Auth**: Register, Login, Forgot Password (email OTP 3-step flow via Resend)
 
@@ -86,7 +87,7 @@ artifacts-monorepo/
 - GET `/api/auth/me`
 
 ### Database Tables
-- `expenses`, `income`, `fuel_entries`, `trips`, `assets`, `saved_routes`, `quick_expenses`, `users`
+- `expenses`, `income`, `fuel_entries`, `trips`, `assets`, `saved_routes`, `quick_expenses`, `users`, `fleets`, `fleet_members`
 
 ### App Store Config (app.json)
 - iOS bundle ID: `com.haulledger.app`

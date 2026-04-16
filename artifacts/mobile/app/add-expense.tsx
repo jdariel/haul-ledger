@@ -12,6 +12,7 @@ import {
   Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { DatePickerField } from "@/components/DatePickerField";
 import { router, useLocalSearchParams } from "expo-router";
 
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -22,8 +23,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import { Colors } from "@/constants/colors";
 import { FormInput } from "@/components/FormInput";
 import { SelectField } from "@/components/SelectField";
-import { useCreateExpense, useUpdateExpense, useExpense } from "@/hooks/useApi";
-import { API_BASE_URL } from "@/constants/api";
+import { useCreateExpense, useUpdateExpense, useExpense, useFleet, apiFetch } from "@/hooks/useApi";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { trackEntryAndRequestReview } from "@/lib/appReview";
 
@@ -80,13 +80,21 @@ export default function AddExpenseScreen() {
   const insets = useSafeAreaInsets();
   const createExpense = useCreateExpense();
   const updateExpense = useUpdateExpense();
-  const { scan, id } = useLocalSearchParams<{ scan?: string; id?: string }>();
+  const { scan, id, forUserId, driverName } = useLocalSearchParams<{ scan?: string; id?: string; forUserId?: string; driverName?: string }>();
   const editId = id ? parseInt(id) : null;
   const isEditing = editId != null;
+  const forDriverId = forUserId ? parseInt(forUserId) : undefined;
+
+  const { data: fleet } = useFleet();
+  const isOwner = fleet?.role === "owner" && !forDriverId;
+  const fleetMembers: Array<{ userId: number; name: string }> = isOwner ? (fleet?.members ?? []) : [];
+  const [selectedDriverId, setSelectedDriverId] = useState<number | null>(null);
+  const effectiveForUserId = forDriverId ?? selectedDriverId ?? undefined;
 
   const { data: existing, isLoading: loadingExisting } = useExpense(editId);
 
-  const today = new Date().toISOString().split("T")[0];
+  const d0 = new Date();
+  const today = `${d0.getFullYear()}-${String(d0.getMonth() + 1).padStart(2, "0")}-${String(d0.getDate()).padStart(2, "0")}`;
   const [date, setDate] = useState(today);
   const [merchant, setMerchant] = useState("");
   const [category, setCategory] = useState("Fuel");
@@ -156,13 +164,10 @@ export default function AddExpenseScreen() {
       setScanStatus("uploading");
       const base64 = await uriToBase64(uri);
       setScanStatus("analyzing");
-      const response = await fetch(`${API_BASE_URL}/receipts/process`, {
+      const data = await apiFetch("/receipts/process", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ imageBase64: base64, mimeType: "image/jpeg" }),
       });
-      if (!response.ok) throw new Error("Server error");
-      const data = await response.json();
 
       if (data.merchant) setMerchant(data.merchant);
       if (data.date) setDate(data.date);
@@ -174,9 +179,10 @@ export default function AddExpenseScreen() {
       if (data.receiptUrl) setReceiptUrl(data.receiptUrl);
 
       setScanStatus("done");
-    } catch {
+    } catch (err: unknown) {
       setScanStatus("error");
-      Alert.alert("Scan failed", "Could not read the receipt. Please fill in the details manually.");
+      const msg = err instanceof Error ? err.message : "Could not read the receipt. Please try a clearer photo.";
+      Alert.alert("Scan failed", msg);
     }
   };
 
@@ -194,6 +200,7 @@ export default function AddExpenseScreen() {
       pricePerGallon: pricePerGallon ? parseFloat(pricePerGallon) : null,
       jurisdiction: jurisdiction || null,
       receiptUrl: receiptUrl ?? null,
+      ...(effectiveForUserId ? { forUserId: effectiveForUserId } : {}),
     };
     try {
       if (isEditing) {
@@ -226,6 +233,39 @@ export default function AddExpenseScreen() {
           <Ionicons name="close" size={24} color={C.textSecondary} />
         </TouchableOpacity>
       </View>
+
+      {driverName ? (
+        <View style={[s.driverBanner, { backgroundColor: "#2563eb18", borderColor: "#2563eb40" }]}>
+          <Ionicons name="person-circle-outline" size={18} color="#2563eb" />
+          <Text style={[s.driverBannerText, { color: "#2563eb" }]}>Adding for {driverName}</Text>
+        </View>
+      ) : isOwner && !isEditing && fleetMembers.length > 1 ? (
+        <View style={[s.pickerBox, { backgroundColor: C.card, borderColor: C.separator }]}>
+          <Text style={[s.pickerLabel, { color: C.textSecondary }]}>Log for</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.pickerChips}>
+            <TouchableOpacity
+              style={[s.chip, selectedDriverId === null && { backgroundColor: C.primary }]}
+              onPress={() => setSelectedDriverId(null)}
+            >
+              <Text style={[s.chipText, { color: selectedDriverId === null ? "#fff" : C.text }]}>Myself</Text>
+            </TouchableOpacity>
+            {fleetMembers.filter((m: any) => m.role !== "owner").map((m: any) => (
+              <TouchableOpacity
+                key={m.userId}
+                style={[s.chip, selectedDriverId === m.userId && { backgroundColor: C.primary }, { borderColor: C.separator, borderWidth: 1 }]}
+                onPress={() => setSelectedDriverId(m.userId)}
+              >
+                <View style={[s.chipAvatar, { backgroundColor: selectedDriverId === m.userId ? "#ffffff40" : C.primary + "20" }]}>
+                  <Text style={[s.chipAvatarText, { color: selectedDriverId === m.userId ? "#fff" : C.primary }]}>
+                    {m.name?.[0]?.toUpperCase()}
+                  </Text>
+                </View>
+                <Text style={[s.chipText, { color: selectedDriverId === m.userId ? "#fff" : C.text }]}>{m.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      ) : null}
 
       <KeyboardAwareScrollView
         bottomOffset={20}
@@ -265,7 +305,7 @@ export default function AddExpenseScreen() {
           <View style={[s.receiptPreview, { backgroundColor: C.card, borderColor: C.cardBorder }]}>
             <View style={s.receiptPreviewLeft}>
               {receiptUri ? (
-                <Image source={{ uri: receiptUri }} style={s.receiptThumb} />
+                <Image source={{ uri: receiptUri }} style={[s.receiptThumb, { backgroundColor: C.neutralBg }]} />
               ) : null}
               <View>
                 <View style={[s.aiBadge, { backgroundColor: C.primaryLight }]}>
@@ -302,12 +342,10 @@ export default function AddExpenseScreen() {
             />
           </View>
           <View style={s.half}>
-            <FormInput
-              label="Date"
+            <DatePickerField
+              label="DATE"
               value={date}
-              onChangeText={setDate}
-              placeholder="YYYY-MM-DD"
-              keyboardType="numbers-and-punctuation"
+              onChange={setDate}
             />
           </View>
         </View>
@@ -324,10 +362,10 @@ export default function AddExpenseScreen() {
 
         {/* Fuel Details */}
         {isFuel && (
-          <View style={[s.fuelBox, { borderColor: "#f59e0b", backgroundColor: "#fffbeb" }]}>
+          <View style={[s.fuelBox, { borderColor: C.orange, backgroundColor: C.orangeLight }]}>
             <View style={s.fuelHeader}>
-              <MaterialCommunityIcons name="fire" size={16} color="#f59e0b" />
-              <Text style={s.fuelTitle}>FUEL DETAILS</Text>
+              <MaterialCommunityIcons name="fire" size={16} color={C.orange} />
+              <Text style={[s.fuelTitle, { color: C.orange }]}>FUEL DETAILS</Text>
             </View>
             <View style={s.row}>
               <View style={s.half}>
@@ -385,6 +423,15 @@ const s = StyleSheet.create({
     paddingBottom: 12,
   },
   title: { fontSize: 18, fontWeight: "700" },
+  driverBanner: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 20, marginBottom: 4, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1 },
+  driverBannerText: { fontSize: 14, fontWeight: "600" },
+  pickerBox: { marginHorizontal: 20, marginBottom: 4, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1 },
+  pickerLabel: { fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 },
+  pickerChips: { flexDirection: "row", gap: 8, paddingRight: 4 },
+  chip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, backgroundColor: "transparent" },
+  chipAvatar: { width: 20, height: 20, borderRadius: 10, justifyContent: "center", alignItems: "center" },
+  chipAvatarText: { fontSize: 10, fontWeight: "800" },
+  chipText: { fontSize: 13, fontWeight: "600" },
   content: { paddingHorizontal: 20, paddingTop: 8 },
   scanActions: { flexDirection: "row", gap: 10, marginBottom: 20 },
   scanBtn: {
@@ -418,7 +465,7 @@ const s = StyleSheet.create({
     marginBottom: 20,
   },
   receiptPreviewLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
-  receiptThumb: { width: 44, height: 44, borderRadius: 8, backgroundColor: "#e5e7eb" },
+  receiptThumb: { width: 44, height: 44, borderRadius: 8 },
   aiBadge: {
     flexDirection: "row",
     alignItems: "center",

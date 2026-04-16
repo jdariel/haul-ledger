@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ export function BiometricLockScreen({ onUnlock }: Props) {
   const colorScheme = useColorScheme();
   const C = Colors[colorScheme === "dark" ? "dark" : "light"];
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -30,6 +31,7 @@ export function BiometricLockScreen({ onUnlock }: Props) {
   }, []);
 
   const triggerAuth = async () => {
+    setAuthError(null);
     try {
       const hasHardware = await LocalAuthentication.hasHardwareAsync();
       if (!hasHardware) {
@@ -37,21 +39,8 @@ export function BiometricLockScreen({ onUnlock }: Props) {
         return;
       }
 
-      // Explicitly request Face ID / biometric permission on iOS
-      const { granted } = await LocalAuthentication.requestPermissionsAsync();
-      if (!granted) {
-        // Permission denied — fall back to passcode unlock via device fallback
-        const result = await LocalAuthentication.authenticateAsync({
-          promptMessage: "Unlock HaulLedger",
-          disableDeviceFallback: false,
-          fallbackLabel: "Use Passcode",
-        });
-        if (result.success) onUnlock();
-        return;
-      }
-
-      const enrolled = await LocalAuthentication.isEnrolledAsync();
-      if (!enrolled) {
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+      if (!isEnrolled) {
         onUnlock();
         return;
       }
@@ -62,11 +51,19 @@ export function BiometricLockScreen({ onUnlock }: Props) {
         disableDeviceFallback: false,
         cancelLabel: "Cancel",
       });
+
       if (result.success) {
         onUnlock();
+      } else if (result.error === "user_cancel" || result.error === "system_cancel") {
+        // User dismissed — keep lock screen visible so they can try again
+      } else if (result.error === "not_enrolled") {
+        // Biometrics were un-enrolled since the lock was set — release the lock
+        onUnlock();
+      } else {
+        setAuthError("Authentication failed. Tap below to try again.");
       }
     } catch {
-      // If the API is unavailable (simulator, web), unlock immediately
+      // expo-local-authentication is not available in this environment (e.g. web)
       onUnlock();
     }
   };
@@ -81,13 +78,16 @@ export function BiometricLockScreen({ onUnlock }: Props) {
         <Text style={[s.sub, { color: C.textSecondary }]}>
           Authenticate to access your financial data
         </Text>
+        {authError && (
+          <Text style={[s.error, { color: C.red ?? "#ef4444" }]}>{authError}</Text>
+        )}
         <TouchableOpacity
           style={[s.btn, { backgroundColor: C.primary }]}
           onPress={triggerAuth}
           activeOpacity={0.8}
         >
           <Ionicons name="finger-print" size={20} color="#fff" />
-          <Text style={s.btnText}>Unlock</Text>
+          <Text style={s.btnText}>Unlock with Biometrics</Text>
         </TouchableOpacity>
       </View>
     </Animated.View>
@@ -124,6 +124,11 @@ const s = StyleSheet.create({
     fontSize: 15,
     textAlign: "center",
     lineHeight: 22,
+  },
+  error: {
+    fontSize: 13,
+    textAlign: "center",
+    lineHeight: 18,
   },
   btn: {
     flexDirection: "row",

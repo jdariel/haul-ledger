@@ -3,7 +3,7 @@
     "name": "HaulLedger",
     "slug": "haul-ledger",
     "owner": "jdariel",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "haulledger",
@@ -17,7 +17,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.replit.haulledger",
-      "buildNumber": "5",
+      "buildNumber": "18",
       "requireFullScreen": true,
       "infoPlist": {
         "NSCameraUsageDescription": "HaulLedger uses the camera to scan and attach receipts to your expenses.",

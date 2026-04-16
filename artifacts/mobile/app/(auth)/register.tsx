@@ -16,6 +16,8 @@ import { Link, router } from "expo-router";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { Colors } from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
+import { PasswordRequirements } from "@/components/PasswordRequirements";
+import { validatePassword } from "@/lib/passwordValidation";
 
 export default function RegisterScreen() {
   const colorScheme = useColorScheme();
@@ -36,10 +38,8 @@ export default function RegisterScreen() {
       setError("All fields are required.");
       return;
     }
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
-      return;
-    }
+    const pwErr = validatePassword(password);
+    if (pwErr) { setError(pwErr); return; }
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
       return;
@@ -146,6 +146,9 @@ export default function RegisterScreen() {
               </View>
             </View>
 
+            {/* Live password requirements */}
+            {password.length > 0 && <PasswordRequirements password={password} />}
+
             {/* Confirm Password */}
             <View style={s.fieldGroup}>
               <Text style={[s.fieldLabel, { color: C.textSecondary }]}>Confirm Password</Text>
@@ -245,10 +248,10 @@ function makeStyles(C: typeof Colors.light) {
 
     errorBox: {
       flexDirection: "row", alignItems: "flex-start", gap: 8,
-      backgroundColor: "#fee2e2", borderRadius: 10,
+      backgroundColor: C.redLight, borderRadius: 10,
       padding: 12,
     },
-    errorText: { color: "#b91c1c", fontSize: 13, flex: 1, lineHeight: 18 },
+    errorText: { color: C.red, fontSize: 13, flex: 1, lineHeight: 18 },
 
     fieldGroup: { gap: 5 },
     fieldLabel: { fontSize: 13, fontWeight: "600" },

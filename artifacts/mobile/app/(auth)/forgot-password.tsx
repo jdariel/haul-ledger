@@ -16,6 +16,8 @@ import { router } from "expo-router";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { Colors } from "@/constants/colors";
 import { API_BASE_URL } from "@/constants/api";
+import { PasswordRequirements } from "@/components/PasswordRequirements";
+import { validatePassword } from "@/lib/passwordValidation";
 
 type Step = "email" | "otp" | "password" | "done";
 
@@ -119,10 +121,8 @@ export default function ForgotPasswordScreen() {
       setError("Please fill in both password fields.");
       return;
     }
-    if (newPassword.length < 8) {
-      setError("Password must be at least 8 characters.");
-      return;
-    }
+    const pwErr = validatePassword(newPassword);
+    if (pwErr) { setError(pwErr); return; }
     if (newPassword !== confirmPassword) {
       setError("Passwords don't match.");
       return;
@@ -338,6 +338,9 @@ export default function ForgotPasswordScreen() {
                 </View>
               </View>
 
+              {/* Live password requirements */}
+              {newPassword.length > 0 && <PasswordRequirements password={newPassword} />}
+
               <View style={s.fieldGroup}>
                 <Text style={[s.fieldLabel, { color: C.textSecondary }]}>Confirm Password</Text>
                 <View style={[
@@ -412,9 +415,9 @@ function makeStyles(C: typeof Colors.light) {
 
     errorBox: {
       flexDirection: "row", alignItems: "center", gap: 8,
-      backgroundColor: "#fee2e2", borderRadius: 10, padding: 12,
+      backgroundColor: C.redLight, borderRadius: 10, padding: 12,
     },
-    errorText: { color: "#b91c1c", fontSize: 13, flex: 1, lineHeight: 18 },
+    errorText: { color: C.red, fontSize: 13, flex: 1, lineHeight: 18 },
 
     card: {
       borderRadius: 20, borderWidth: 1, padding: 24, gap: 16,

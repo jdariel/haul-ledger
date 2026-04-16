@@ -13,32 +13,29 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import { Platform } from "react-native";
 import { Colors } from "@/constants/colors";
 import { useExpense, useDeleteExpense } from "@/hooks/useApi";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useColorScheme } from "@/hooks/useColorScheme";
-
-const BASE_URL =
-  Platform.OS === "web"
-    ? "/api"
-    : `${process.env.EXPO_PUBLIC_DOMAIN ?? ""}/api`;
+import { API_BASE_URL } from "@/constants/api";
 
 function receiptImageUrl(objectPath: string): string {
-  return `${BASE_URL}/storage${objectPath}`;
+  return `${API_BASE_URL}/storage${objectPath}`;
 }
 
-const CATEGORY_ICONS: Record<string, { icon: string; color: string; bg: string }> = {
-  Fuel: { icon: "flame", color: "#f59e0b", bg: "#fef3c7" },
-  Maintenance: { icon: "construct", color: "#8b5cf6", bg: "#ede9fe" },
-  Repairs: { icon: "build", color: "#8b5cf6", bg: "#ede9fe" },
-  Lumper: { icon: "people", color: "#3b82f6", bg: "#eff6ff" },
-  Tolls: { icon: "car", color: "#6b7280", bg: "#f3f4f6" },
-  Parking: { icon: "location", color: "#14b8a6", bg: "#ccfbf1" },
-  "Scale Fee": { icon: "scale", color: "#f97316", bg: "#fff7ed" },
-  Insurance: { icon: "shield-checkmark", color: "#0ea5e9", bg: "#e0f2fe" },
-  Other: { icon: "ellipsis-horizontal", color: "#6b7280", bg: "#f3f4f6" },
-};
+function getCategoryIcons(C: typeof Colors.light): Record<string, { icon: string; color: string; bg: string }> {
+  return {
+    Fuel: { icon: "flame", color: C.orange, bg: C.orangeLight },
+    Maintenance: { icon: "construct", color: C.purple, bg: C.purpleLight },
+    Repairs: { icon: "build", color: C.purple, bg: C.purpleLight },
+    Lumper: { icon: "people", color: C.blue2, bg: C.blue2Light },
+    Tolls: { icon: "car", color: C.textSecondary, bg: C.neutralBg },
+    Parking: { icon: "location", color: C.teal, bg: C.tealLight },
+    "Scale Fee": { icon: "scale", color: C.orange, bg: C.orangeLight },
+    Insurance: { icon: "shield-checkmark", color: C.primary, bg: C.primaryLight },
+    Other: { icon: "ellipsis-horizontal", color: C.textSecondary, bg: C.neutralBg },
+  };
+}
 
 function Row({ label, value, C }: { label: string; value?: string | null; C: typeof Colors.light }) {
   if (!value) return null;
@@ -65,7 +62,8 @@ const rowStyles = StyleSheet.create({
 
 export default function ExpenseDetailScreen() {
   const colorScheme = useColorScheme();
-  const C = Colors[colorScheme === "dark" ? "dark" : "light"];
+  const isDark = colorScheme === "dark";
+  const C = Colors[isDark ? "dark" : "light"];
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: expense, isLoading } = useExpense(id ? parseInt(id) : null);
   const deleteExpense = useDeleteExpense();
@@ -74,6 +72,7 @@ export default function ExpenseDetailScreen() {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const s = makeStyles(C);
+  const CATEGORY_ICONS = getCategoryIcons(C);
   const { width, height } = Dimensions.get("window");
 
   const handleDelete = () => setConfirmDelete(true);
@@ -135,7 +134,7 @@ export default function ExpenseDetailScreen() {
       <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
         {/* Hero */}
         <View style={[s.hero, { backgroundColor: meta.bg }]}>
-          <View style={[s.heroIcon]}>
+          <View style={[s.heroIcon, { backgroundColor: isDark ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.65)" }]}>
             <Ionicons name={meta.icon as any} size={32} color={meta.color} />
           </View>
           <Text style={[s.heroAmount, { color: C.text }]}>
@@ -303,7 +302,6 @@ function makeStyles(C: typeof Colors.light) {
       width: 64,
       height: 64,
       borderRadius: 20,
-      backgroundColor: "rgba(255,255,255,0.6)",
       justifyContent: "center",
       alignItems: "center",
       marginBottom: 4,

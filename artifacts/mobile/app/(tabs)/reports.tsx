@@ -24,6 +24,10 @@ function fmtDate(d: Date) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+function parseLocalDate(str: string): Date {
+  return str.length === 10 ? new Date(str + "T00:00:00") : new Date(str);
+}
+
 type ReportTab = "all" | "income" | "expenses";
 
 type Preset = {
@@ -160,21 +164,21 @@ export default function ReportsScreen() {
 
   const expenses = useMemo(() => {
     return (expensesRaw ?? []).filter((e: any) => {
-      const d = new Date(e.date || e.createdAt);
+      const d = parseLocalDate(e.date || e.createdAt);
       return d >= dateRange.start && d <= dateRange.end;
     });
   }, [expensesRaw, dateRange]);
 
   const income = useMemo(() => {
     return (incomeRaw ?? []).filter((i: any) => {
-      const d = new Date(i.date || i.createdAt);
+      const d = parseLocalDate(i.date || i.createdAt);
       return d >= dateRange.start && d <= dateRange.end;
     });
   }, [incomeRaw, dateRange]);
 
   const trips = useMemo(() => {
     return (tripsRaw ?? []).filter((t: any) => {
-      const d = new Date(t.date || t.createdAt);
+      const d = parseLocalDate(t.date || t.createdAt);
       return d >= dateRange.start && d <= dateRange.end;
     });
   }, [tripsRaw, dateRange]);

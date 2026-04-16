@@ -29,48 +29,52 @@ router.post("/process", async (req, res) => {
       return res.status(400).json({ error: "imageBase64 is required" });
     }
 
-    let objectPath: string | null = null;
-    try {
-      const imageBuffer = Buffer.from(imageBase64, "base64");
-      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
-      objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
-
-      const gcsUrl = uploadURL;
-      await fetch(gcsUrl, {
-        method: "PUT",
-        headers: { "Content-Type": mimeType },
-        body: imageBuffer,
+    // Run GCS upload and AI parsing in parallel — don't let storage latency block the result
+    const imageBuffer = Buffer.from(imageBase64, "base64");
+    const uploadPromise = objectStorageService.getObjectEntityUploadURL()
+      .then(async (uploadURL) => {
+        const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+        await fetch(uploadURL, {
+          method: "PUT",
+          headers: { "Content-Type": mimeType },
+          body: imageBuffer,
+        });
+        return objectPath;
+      })
+      .catch((err) => {
+        console.error("Receipt upload to storage failed:", err);
+        return null as string | null;
       });
-    } catch (uploadErr) {
-      console.error("Receipt upload to storage failed:", uploadErr);
-    }
 
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      max_completion_tokens: 1024,
+      model: "gpt-5.2",
+      max_completion_tokens: 8192,
+      response_format: { type: "json_object" },
       messages: [
+        {
+          role: "system",
+          content: `You are a receipt OCR parser for a trucking expense tracker. Extract fields from the receipt image and return ONLY a JSON object. Never return markdown, never add commentary. All keys must be present; use null when a value is absent or inapplicable.`,
+        },
         {
           role: "user",
           content: [
             {
               type: "text",
-              text: `You are a receipt parser for a trucking expense tracker. Extract the following from the receipt image and return ONLY valid JSON with no markdown or explanation:
-{
-  "merchant": "string or null",
-  "date": "YYYY-MM-DD format or null",
-  "amount": number or null,
-  "category": "one of: Fuel, Maintenance, Lumper, Tolls, Parking, Scale Fee, Other",
-  "gallons": number or null (only for fuel receipts),
-  "pricePerGallon": number or null (only for fuel receipts),
-  "jurisdiction": "state abbreviation or null (only for fuel receipts)"
-}
-If a field is not visible or not applicable, use null. category must be one of the listed options.`,
+              text: `Parse this receipt and return a JSON object with exactly these keys:
+- merchant (string): business name shown on receipt, or null
+- date (string): date in YYYY-MM-DD format, or null
+- amount (number): total amount charged in USD (not subtotal), or null
+- category (string): one of exactly ["Fuel","Maintenance","Lumper","Tolls","Parking","Scale Fee","Other"]
+- gallons (number): gallons purchased — only for fuel receipts, otherwise null
+- pricePerGallon (number): price per gallon — only for fuel receipts, otherwise null
+- jurisdiction (string): 2-letter US state abbreviation where fuel was purchased — only for fuel, otherwise null
+
+Return JSON only. No markdown fences.`,
             },
             {
               type: "image_url",
               image_url: {
                 url: `data:${mimeType};base64,${imageBase64}`,
-                detail: "high",
               },
             },
           ],
@@ -79,13 +83,18 @@ If a field is not visible or not applicable, use null. category must be one of t
     });
 
     const content = response.choices[0]?.message?.content ?? "{}";
+    console.log("[receipts] GPT raw response:", content.slice(0, 300));
     let parsed: Record<string, unknown> = {};
     try {
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
-    } catch {
+    } catch (parseErr) {
+      console.error("[receipts] JSON parse failed:", parseErr, "raw:", content);
       parsed = {};
     }
+
+    // Collect the storage path — parallel upload may still be in-flight; wait for it now
+    const objectPath = await uploadPromise;
 
     res.json({
       merchant: (parsed.merchant as string) ?? null,
@@ -97,9 +106,19 @@ If a field is not visible or not applicable, use null. category must be one of t
       jurisdiction: (parsed.jurisdiction as string) ?? null,
       receiptUrl: objectPath,
     });
-  } catch (err) {
+  } catch (err: unknown) {
     console.error("Receipt processing error:", err);
-    res.status(500).json({ error: "Failed to process receipt" });
+    const apiMessage =
+      err && typeof err === "object" && "error" in err && err.error &&
+      typeof err.error === "object" && "message" in err.error
+        ? String((err.error as { message: unknown }).message)
+        : null;
+    const httpStatus = err && typeof err === "object" && "status" in err
+      ? Number((err as { status: unknown }).status)
+      : 500;
+    res.status(httpStatus >= 400 && httpStatus < 500 ? 422 : 500).json({
+      error: apiMessage ?? "Failed to process receipt. Please try a clearer photo.",
+    });
   }
 });
 

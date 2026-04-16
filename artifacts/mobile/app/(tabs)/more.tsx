@@ -80,7 +80,6 @@ export default function MoreScreen() {
   const { settings, updateSettings } = useAppContext();
   const { user, token, logout, deleteAccount, updateProfile } = useAuth();
   const isDark = settings.colorScheme === "dark";
-  const [mileTarget, setMileTarget] = useState(String(settings.mileageGoal || ""));
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -235,40 +234,15 @@ export default function MoreScreen() {
           <Row icon="git-merge-outline" iconBg={C.tealLight} iconColor={C.teal}
             label="Saved Routes" subtitle="Templates for quick income logging"
             onPress={() => router.push("/add-route")} C={C} />
-          <Row icon="car-outline" iconBg={C.tealLight} iconColor={C.teal}
-            label="Fleet" subtitle="Manage trucks and trailers"
-            onPress={() => router.push("/add-asset")} C={C} />
-          <Row icon="flash-outline" iconBg="#fef9c3" iconColor="#ca8a04"
-            label="Quick Add" subtitle="Save common expenses for one-tap logging"
-            onPress={() => router.push("/quick-add")} last C={C} />
-        </View>
-
-        {/* Goals */}
-        <Text style={s.sectionLabel}>Goals</Text>
-        <View style={[s.card, { backgroundColor: C.card, borderColor: C.separator }]}>
-          <View style={s.goalRow}>
-            <View style={[s.goalIcon, { backgroundColor: C.primaryLight }]}>
-              <Ionicons name="navigate" size={18} color={C.primary} />
-            </View>
-            <View style={s.goalText}>
-              <Text style={[s.goalLabel, { color: C.text }]}>Weekly Miles Target</Text>
-              <Text style={[s.goalSub, { color: C.textSecondary }]}>Track progress on your dashboard</Text>
-            </View>
-            <TextInput
-              style={[s.goalInput, { borderColor: C.separator, color: C.text, backgroundColor: C.background }]}
-              placeholder="e.g. 2500"
-              placeholderTextColor={C.textMuted}
-              value={mileTarget}
-              onChangeText={setMileTarget}
-              keyboardType="numeric"
-            />
-            <TouchableOpacity
-              style={[s.saveBtn, { backgroundColor: C.primary }]}
-              onPress={() => updateSettings({ mileageGoal: parseInt(mileTarget) || 0 })}
-            >
-              <Text style={s.saveBtnText}>Save</Text>
-            </TouchableOpacity>
-          </View>
+          <Row icon="bus-outline" iconBg={C.blue2Light} iconColor={C.blue2}
+            label="Fleet & Assets" subtitle="Manage drivers, trucks and trailers"
+            onPress={() => router.push("/fleet")} C={C} />
+          <Row icon="calculator-outline" iconBg={C.purpleLight} iconColor={C.purple}
+            label="Cost Setup" subtitle="Track fixed costs, MPG, cost per mile"
+            onPress={() => router.push("/cost-setup")} C={C} />
+          <Row icon="trending-up-outline" iconBg={C.grassLight} iconColor={C.grass}
+            label="Load Evaluator" subtitle="See your clean profit before accepting a load"
+            onPress={() => router.push("/load-evaluator")} last C={C} />
         </View>
 
         {/* Preferences */}
@@ -314,8 +288,8 @@ export default function MoreScreen() {
         <Text style={s.sectionLabel}>Security</Text>
         <View style={[s.card, { backgroundColor: C.card, borderColor: C.separator, padding: 0 }]}>
           <View style={s.prefRow}>
-            <View style={[rowS.iconBox, { backgroundColor: "#fef2f2" }]}>
-              <Ionicons name="finger-print" size={19} color="#ef4444" />
+            <View style={[rowS.iconBox, { backgroundColor: C.redLight }]}>
+              <Ionicons name="finger-print" size={19} color={C.red} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[s.prefLabel, { color: C.text }]}>
@@ -501,22 +475,13 @@ function makeStyles(C: typeof Colors.light) {
     authBadgeText: { fontSize: 11, fontWeight: "700" },
     editProfileBtn: { width: 32, height: 32, borderRadius: 8, justifyContent: "center", alignItems: "center", alignSelf: "flex-start" },
     editSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 12, paddingHorizontal: 20, paddingBottom: 32, gap: 14 },
-    sheetHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#d1d5db", alignSelf: "center", marginBottom: 4 },
+    sheetHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: C.separator, alignSelf: "center", marginBottom: 4 },
     sheetHdr: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
     sheetTitle: { fontSize: 18, fontWeight: "700" },
     sheetSub: { fontSize: 13, lineHeight: 19 },
     sheetInput: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, fontSize: 16 },
     sheetSaveBtn: { paddingVertical: 15, borderRadius: 14, alignItems: "center" },
     sheetSaveBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
-
-    goalRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-    goalIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: "center", alignItems: "center" },
-    goalText: { flex: 1 },
-    goalLabel: { fontSize: 14, fontWeight: "600" },
-    goalSub: { fontSize: 12, marginTop: 1 },
-    goalInput: { borderWidth: 1, borderRadius: 9, paddingHorizontal: 10, paddingVertical: 7, fontSize: 13, width: 68 },
-    saveBtn: { borderRadius: 9, paddingHorizontal: 12, paddingVertical: 8 },
-    saveBtnText: { color: "#fff", fontSize: 13, fontWeight: "700" },
 
     prefRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12, gap: 14 },
     prefLabel: { flex: 1, fontSize: 15, fontWeight: "600" },

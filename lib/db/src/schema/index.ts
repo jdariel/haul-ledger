@@ -8,6 +8,7 @@ export const usersTable = pgTable("users", {
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   expoPushToken: text("expo_push_token"), // Expo push notification token (nullable)
+  targetMonthlyMiles: integer("target_monthly_miles"), // User-set monthly miles target
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -75,6 +76,7 @@ export type FuelEntry = typeof fuelEntriesTable.$inferSelect;
 export const tripsTable = pgTable("trips", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => usersTable.id),
+  incomeId: integer("income_id").references(() => incomeTable.id, { onDelete: "set null" }),
   date: text("date").notNull(),
   pickupLocation: text("pickup_location"),
   deliveryLocation: text("delivery_location"),
@@ -134,3 +136,38 @@ export const quickExpensesTable = pgTable("quick_expenses", {
 export const insertQuickExpenseSchema = createInsertSchema(quickExpensesTable).omit({ id: true, createdAt: true });
 export type InsertQuickExpense = z.infer<typeof insertQuickExpenseSchema>;
 export type QuickExpense = typeof quickExpensesTable.$inferSelect;
+
+// ── Cost settings ─────────────────────────────────────────────────────────────
+
+export const costSettingsTable = pgTable("cost_settings", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => usersTable.id).notNull(),
+  label: text("label").notNull(),
+  amount: real("amount").notNull(),
+  frequency: text("frequency").notNull().default("monthly"), // "monthly" | "weekly" | "annual" | "per_mile"
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type CostSetting = typeof costSettingsTable.$inferSelect;
+
+// ── Fleet management ──────────────────────────────────────────────────────────
+
+export const fleetsTable = pgTable("fleets", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  ownerId: integer("owner_id").references(() => usersTable.id).notNull(),
+  inviteCode: text("invite_code").notNull().unique(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type Fleet = typeof fleetsTable.$inferSelect;
+
+export const fleetMembersTable = pgTable("fleet_members", {
+  id: serial("id").primaryKey(),
+  fleetId: integer("fleet_id").references(() => fleetsTable.id).notNull(),
+  userId: integer("user_id").references(() => usersTable.id).notNull(),
+  role: text("role").notNull().default("driver"), // "owner" | "driver"
+  joinedAt: timestamp("joined_at").defaultNow().notNull(),
+});
+
+export type FleetMember = typeof fleetMembersTable.$inferSelect;

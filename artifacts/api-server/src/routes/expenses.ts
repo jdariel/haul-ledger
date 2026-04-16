@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db, expensesTable, fuelEntriesTable } from "@workspace/db";
 import { eq, desc, and } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
+import { resolveTargetUserId } from "../utils/fleetOwnership";
 
 const router = Router();
 
@@ -20,9 +21,10 @@ router.get("/", requireAuth, async (req, res) => {
     if (req.query.week === "true") {
       const now = new Date();
       const startOfWeek = new Date(now);
-      startOfWeek.setDate(now.getDate() - now.getDay());
+      const dayOfWeek = now.getDay();
+      startOfWeek.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
       startOfWeek.setHours(0, 0, 0, 0);
-      expenses = expenses.filter((e) => new Date(e.date) >= startOfWeek);
+      expenses = expenses.filter((e) => new Date(e.date + "T00:00:00") >= startOfWeek);
     }
     if (req.query.search) {
       const search = (req.query.search as string).toLowerCase();
@@ -37,8 +39,10 @@ router.get("/", requireAuth, async (req, res) => {
 
 router.post("/", requireAuth, async (req, res) => {
   try {
-    const uid = req.user!.id;
+    const requesterId = req.user!.id;
+    const uid = await resolveTargetUserId(requesterId, req.body.forUserId);
     const body = { ...req.body, userId: uid };
+    delete body.forUserId;
 
     const isFuel =
       body.category === "Fuel" &&

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   StyleSheet,
   TouchableOpacity,
@@ -19,6 +19,13 @@ import { SelectField } from "@/components/SelectField";
 import { useCreateTrip, useUpdateTrip, useTrip, useTrips } from "@/hooks/useApi";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { trackEntryAndRequestReview } from "@/lib/appReview";
+import { API_BASE_URL } from "@/constants/api";
+import { getAuthToken } from "@/hooks/useApi";
+
+function authHeaders() {
+  const token = getAuthToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 const US_STATES = [
   "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA",
@@ -32,11 +39,11 @@ type Mode = "location" | "odometer";
 
 async function geocode(query: string): Promise<{ lat: number; lon: number } | null> {
   try {
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=us`;
-    const res = await fetch(url, { headers: { "User-Agent": "HaulLedger/1.0" } });
+    const url = `${API_BASE_URL}/geo/geocode?q=${encodeURIComponent(query)}`;
+    const res = await fetch(url, { headers: authHeaders() });
+    if (!res.ok) return null;
     const data = await res.json();
-    if (!data?.length) return null;
-    return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+    return data.result ?? null;
   } catch {
     return null;
   }
@@ -44,12 +51,12 @@ async function geocode(query: string): Promise<{ lat: number; lon: number } | nu
 
 async function routeDistance(from: { lat: number; lon: number }, to: { lat: number; lon: number }): Promise<number | null> {
   try {
-    const url = `https://router.project-osrm.org/route/v1/driving/${from.lon},${from.lat};${to.lon},${to.lat}?overview=false`;
-    const res = await fetch(url);
+    const waypoints = `${from.lon},${from.lat};${to.lon},${to.lat}`;
+    const url = `${API_BASE_URL}/geo/route?coords=${encodeURIComponent(waypoints)}`;
+    const res = await fetch(url, { headers: authHeaders() });
+    if (!res.ok) return null;
     const data = await res.json();
-    if (data.code !== "Ok" || !data.routes?.length) return null;
-    const meters = data.routes[0].distance;
-    return Math.round(meters * 0.000621371);
+    return data.miles ?? null;
   } catch {
     return null;
   }
@@ -61,15 +68,17 @@ export default function AddTripScreen() {
   const insets = useSafeAreaInsets();
   const createTrip = useCreateTrip();
   const updateTrip = useUpdateTrip();
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { id, forUserId, driverName } = useLocalSearchParams<{ id?: string; forUserId?: string; driverName?: string }>();
   const editId = id ? parseInt(id) : null;
   const isEditing = editId != null;
+  const forDriverId = forUserId ? parseInt(forUserId) : undefined;
 
   const { data: existing } = useTrip(editId);
   const { data: allTrips } = useTrips();
   const [prefilled, setPrefilled] = useState(false);
 
-  const today = new Date().toISOString().split("T")[0];
+  const d0 = new Date();
+  const today = `${d0.getFullYear()}-${String(d0.getMonth() + 1).padStart(2, "0")}-${String(d0.getDate()).padStart(2, "0")}`;
   const [mode, setMode] = useState<Mode>("location");
   const [date, setDate] = useState(today);
   const [jurisdiction, setJurisdiction] = useState("");
@@ -78,10 +87,14 @@ export default function AddTripScreen() {
   const [pickupLocation, setPickupLocation] = useState("");
   const [deliveryLocation, setDeliveryLocation] = useState("");
   const [emptyFromLocation, setEmptyFromLocation] = useState("");
+  const [emptyFromUserEdited, setEmptyFromUserEdited] = useState(false);
   const [loadedMiles, setLoadedMiles] = useState("");
   const [emptyMiles, setEmptyMiles] = useState("");
   const [calculatingLoaded, setCalculatingLoaded] = useState(false);
   const [calculatingEmpty, setCalculatingEmpty] = useState(false);
+
+  const loadedDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const emptyDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [startOdo, setStartOdo] = useState("");
   const [endOdo, setEndOdo] = useState("");
@@ -104,6 +117,7 @@ export default function AddTripScreen() {
         setMode("location");
       }
       if (existing.deliveryLocation) setDeliveryLocation(existing.deliveryLocation);
+      if (existing.emptyFromLocation) { setEmptyFromLocation(existing.emptyFromLocation); setEmptyFromUserEdited(true); }
       setPrefilled(true);
     }
   }, [existing]);
@@ -117,48 +131,58 @@ export default function AddTripScreen() {
     }
   }, [allTrips]);
 
-  const handleCalculateLoaded = async () => {
-    if (!pickupLocation.trim() || !deliveryLocation.trim()) {
-      return Alert.alert("Missing info", "Enter both pickup and delivery locations first.");
-    }
+  const runCalcLoaded = useCallback(async (pickup: string, delivery: string) => {
+    if (!pickup.trim() || !delivery.trim()) return;
     setCalculatingLoaded(true);
     const [fromCoord, toCoord] = await Promise.all([
-      geocode(pickupLocation),
-      geocode(deliveryLocation),
+      geocode(pickup),
+      geocode(delivery),
     ]);
-    if (!fromCoord || !toCoord) {
-      setCalculatingLoaded(false);
-      return Alert.alert("Location not found", "Could not find one or both locations. Try adding city and state (e.g. Dallas, TX).");
-    }
-    const miles = await routeDistance(fromCoord, toCoord);
     setCalculatingLoaded(false);
-    if (miles == null) {
-      return Alert.alert("Route error", "Could not calculate route distance. Enter miles manually.");
-    }
+    if (!fromCoord || !toCoord) return;
+    const miles = await routeDistance(fromCoord, toCoord);
+    if (miles == null) return;
     setLoadedMiles(String(miles));
-    if (!endOdo && startOdo) setEndOdo(String(parseFloat(startOdo) + miles));
-  };
+    setEndOdo((prev) => {
+      if (!prev && startOdo) return String(parseFloat(startOdo) + miles);
+      return prev;
+    });
+  }, [startOdo]);
 
-  const handleCalculateEmpty = async () => {
-    if (!emptyFromLocation.trim() || !pickupLocation.trim()) {
-      return Alert.alert("Missing info", "Enter the previous delivery location and current pickup location.");
-    }
+  const runCalcEmpty = useCallback(async (emptyFrom: string, pickup: string) => {
+    if (!emptyFrom.trim() || !pickup.trim()) return;
     setCalculatingEmpty(true);
     const [fromCoord, toCoord] = await Promise.all([
-      geocode(emptyFromLocation),
-      geocode(pickupLocation),
+      geocode(emptyFrom),
+      geocode(pickup),
     ]);
-    if (!fromCoord || !toCoord) {
-      setCalculatingEmpty(false);
-      return Alert.alert("Location not found", "Could not find one or both locations.");
-    }
-    const miles = await routeDistance(fromCoord, toCoord);
     setCalculatingEmpty(false);
-    if (miles == null) {
-      return Alert.alert("Route error", "Could not calculate empty miles. Enter manually.");
-    }
+    if (!fromCoord || !toCoord) return;
+    const miles = await routeDistance(fromCoord, toCoord);
+    if (miles == null) return;
     setEmptyMiles(String(miles));
-  };
+  }, []);
+
+  useEffect(() => {
+    if (mode !== "location") return;
+    if (loadedDebounceRef.current) clearTimeout(loadedDebounceRef.current);
+    if (!pickupLocation.trim() || !deliveryLocation.trim()) return;
+    loadedDebounceRef.current = setTimeout(() => {
+      runCalcLoaded(pickupLocation, deliveryLocation);
+    }, 1000);
+    return () => { if (loadedDebounceRef.current) clearTimeout(loadedDebounceRef.current); };
+  }, [pickupLocation, deliveryLocation, mode]);
+
+  useEffect(() => {
+    if (mode !== "location") return;
+    if (!emptyFromUserEdited) return;
+    if (emptyDebounceRef.current) clearTimeout(emptyDebounceRef.current);
+    if (!emptyFromLocation.trim() || !pickupLocation.trim()) return;
+    emptyDebounceRef.current = setTimeout(() => {
+      runCalcEmpty(emptyFromLocation, pickupLocation);
+    }, 1000);
+    return () => { if (emptyDebounceRef.current) clearTimeout(emptyDebounceRef.current); };
+  }, [emptyFromLocation, pickupLocation, mode, emptyFromUserEdited]);
 
   const calcOdometerMiles = () => {
     const start = parseFloat(startOdo);
@@ -179,7 +203,7 @@ export default function AddTripScreen() {
     const startOdoNum = parseFloat(startOdo) || 0;
     const endOdoNum = parseFloat(endOdo) || (startOdoNum + loaded + empty);
 
-    const payload = {
+    const payload: any = {
       date,
       pickupLocation: pickupLocation.trim() || null,
       deliveryLocation: deliveryLocation.trim() || null,
@@ -189,6 +213,7 @@ export default function AddTripScreen() {
       emptyMiles: empty,
       jurisdiction: jurisdiction.toUpperCase().slice(0, 2),
       notes: notes.trim() || null,
+      ...(forDriverId ? { forUserId: forDriverId } : {}),
     };
 
     try {
@@ -215,6 +240,13 @@ export default function AddTripScreen() {
         <Text style={[s.title, { color: C.text }]}>{isEditing ? "Edit Trip" : "Log Trip"}</Text>
         <View style={{ width: 32 }} />
       </View>
+
+      {driverName ? (
+        <View style={[s.driverBanner, { backgroundColor: "#2563eb18", borderColor: "#2563eb40" }]}>
+          <Ionicons name="person-circle-outline" size={18} color="#2563eb" />
+          <Text style={[s.driverBannerText, { color: "#2563eb" }]}>Adding for {driverName}</Text>
+        </View>
+      ) : null}
 
       <KeyboardAwareScrollView
         bottomOffset={20}
@@ -268,26 +300,35 @@ export default function AddTripScreen() {
                 onChangeText={setDeliveryLocation}
                 placeholder="Houston, TX"
               />
-              <TouchableOpacity
-                style={[s.calcBtn, { backgroundColor: C.teal, opacity: calculatingLoaded ? 0.7 : 1 }]}
-                onPress={handleCalculateLoaded}
-                disabled={calculatingLoaded}
-                activeOpacity={0.8}
-              >
-                {calculatingLoaded
-                  ? <ActivityIndicator size="small" color="#fff" />
-                  : <Ionicons name="navigate" size={15} color="#fff" />}
-                <Text style={s.calcBtnText}>
-                  {calculatingLoaded ? "Calculating…" : "Calculate Loaded Miles"}
-                </Text>
-              </TouchableOpacity>
-              <FormInput
-                label="Loaded Miles"
-                value={loadedMiles}
-                onChangeText={setLoadedMiles}
-                placeholder="Auto-calculated or enter manually"
-                keyboardType="decimal-pad"
-              />
+              <View style={s.milesFieldWrap}>
+                <View style={s.milesFieldHeader}>
+                  <Text style={[s.fieldLabel, { color: C.textSecondary }]}>Loaded Miles</Text>
+                  {calculatingLoaded ? (
+                    <View style={s.calcStatus}>
+                      <ActivityIndicator size="small" color={C.teal} />
+                      <Text style={[s.calcStatusText, { color: C.teal }]}>Calculating…</Text>
+                    </View>
+                  ) : (pickupLocation.trim() && deliveryLocation.trim()) ? (
+                    <TouchableOpacity
+                      style={s.recalcBtn}
+                      onPress={() => runCalcLoaded(pickupLocation, deliveryLocation)}
+                      hitSlop={8}
+                    >
+                      <Ionicons name="refresh-outline" size={13} color={C.teal} />
+                      <Text style={[s.recalcText, { color: C.teal }]}>Recalculate</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+                <TextInput
+                  style={[s.milesInput, { backgroundColor: C.inputBackground, borderColor: C.cardBorder, color: C.text }]}
+                  value={calculatingLoaded ? "" : loadedMiles}
+                  onChangeText={setLoadedMiles}
+                  placeholder={calculatingLoaded ? "Calculating…" : "Auto-filled or enter manually"}
+                  placeholderTextColor={calculatingLoaded ? C.teal : C.textMuted}
+                  keyboardType="decimal-pad"
+                  editable={!calculatingLoaded}
+                />
+              </View>
             </View>
 
             {/* Empty Miles Section */}
@@ -297,34 +338,56 @@ export default function AddTripScreen() {
                 <Text style={[s.sectionLabel, { color: C.orange }]}>EMPTY LEG (Deadhead)</Text>
               </View>
               <Text style={[s.hint, { color: C.textSecondary }]}>
-                Where did you drive from (empty) to reach the pickup?
+                Where did you drive from (empty) to reach the pickup? Edit the location to auto-calculate, or enter miles manually.
               </Text>
-              <FormInput
-                label="Drove empty from"
-                value={emptyFromLocation}
-                onChangeText={setEmptyFromLocation}
-                placeholder="Previous delivery city (auto-filled)"
-              />
-              <TouchableOpacity
-                style={[s.calcBtn, { backgroundColor: C.orange, opacity: calculatingEmpty ? 0.7 : 1 }]}
-                onPress={handleCalculateEmpty}
-                disabled={calculatingEmpty}
-                activeOpacity={0.8}
-              >
-                {calculatingEmpty
-                  ? <ActivityIndicator size="small" color="#fff" />
-                  : <Ionicons name="navigate" size={15} color="#fff" />}
-                <Text style={s.calcBtnText}>
-                  {calculatingEmpty ? "Calculating…" : "Calculate Empty Miles"}
-                </Text>
-              </TouchableOpacity>
-              <FormInput
-                label="Empty Miles"
-                value={emptyMiles}
-                onChangeText={setEmptyMiles}
-                placeholder="0"
-                keyboardType="decimal-pad"
-              />
+              <View style={s.emptyFromRow}>
+                <View style={{ flex: 1 }}>
+                  <FormInput
+                    label="Drove empty from"
+                    value={emptyFromLocation}
+                    onChangeText={(v) => { setEmptyFromLocation(v); setEmptyFromUserEdited(true); }}
+                    placeholder="e.g. your yard or last delivery city"
+                  />
+                </View>
+                {emptyFromLocation.trim() ? (
+                  <TouchableOpacity
+                    style={s.clearEmptyBtn}
+                    onPress={() => { setEmptyFromLocation(""); setEmptyFromUserEdited(false); setEmptyMiles(""); }}
+                    hitSlop={8}
+                  >
+                    <Ionicons name="close-circle" size={20} color={C.textMuted} />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+              <View style={s.milesFieldWrap}>
+                <View style={s.milesFieldHeader}>
+                  <Text style={[s.fieldLabel, { color: C.textSecondary }]}>Empty Miles</Text>
+                  {calculatingEmpty ? (
+                    <View style={s.calcStatus}>
+                      <ActivityIndicator size="small" color={C.orange} />
+                      <Text style={[s.calcStatusText, { color: C.orange }]}>Calculating…</Text>
+                    </View>
+                  ) : (emptyFromLocation.trim() && pickupLocation.trim()) ? (
+                    <TouchableOpacity
+                      style={s.recalcBtn}
+                      onPress={() => { setEmptyFromUserEdited(true); runCalcEmpty(emptyFromLocation, pickupLocation); }}
+                      hitSlop={8}
+                    >
+                      <Ionicons name="refresh-outline" size={13} color={C.orange} />
+                      <Text style={[s.recalcText, { color: C.orange }]}>Recalculate</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+                <TextInput
+                  style={[s.milesInput, { backgroundColor: C.inputBackground, borderColor: C.cardBorder, color: C.text }]}
+                  value={calculatingEmpty ? "" : emptyMiles}
+                  onChangeText={setEmptyMiles}
+                  placeholder={calculatingEmpty ? "Calculating…" : "Auto-filled or enter manually"}
+                  placeholderTextColor={calculatingEmpty ? C.orange : C.textMuted}
+                  keyboardType="decimal-pad"
+                  editable={!calculatingEmpty}
+                />
+              </View>
             </View>
           </>
         ) : (
@@ -463,6 +526,8 @@ const s = StyleSheet.create({
     paddingBottom: 12,
   },
   title: { fontSize: 18, fontWeight: "700" },
+  driverBanner: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 20, marginBottom: 4, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1 },
+  driverBannerText: { fontSize: 14, fontWeight: "600" },
   content: { paddingHorizontal: 20, paddingTop: 8, gap: 4 },
   modeToggle: {
     flexDirection: "row",
@@ -502,6 +567,27 @@ const s = StyleSheet.create({
     marginVertical: 4,
   },
   calcBtnText: { color: "#fff", fontSize: 13, fontWeight: "700" },
+  emptyFromRow: { flexDirection: "row", alignItems: "flex-end", gap: 6 },
+  clearEmptyBtn: { paddingBottom: 12 },
+  milesFieldWrap: { marginBottom: 4 },
+  milesFieldHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  calcStatus: { flexDirection: "row", alignItems: "center", gap: 5 },
+  calcStatusText: { fontSize: 12, fontWeight: "600" },
+  recalcBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
+  recalcText: { fontSize: 12, fontWeight: "600" },
+  milesInput: {
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    fontFamily: "Inter_400Regular",
+  },
   summaryBox: {
     borderRadius: 14,
     borderWidth: 1,

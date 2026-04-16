@@ -26,6 +26,13 @@ function sameDay(a: Date, b: Date) {
 function startOfDay(d: Date) { const x = new Date(d); x.setHours(0,0,0,0); return x; }
 function endOfDay(d: Date) { const x = new Date(d); x.setHours(23,59,59,999); return x; }
 
+function firstDayOfMonth(year: number, month: number): number {
+  const t = [0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4];
+  let y = year;
+  if (month < 2) y -= 1;
+  return (y + Math.floor(y / 4) - Math.floor(y / 100) + Math.floor(y / 400) + t[month] + 1) % 7;
+}
+
 type Props = {
   visible: boolean;
   initialStart?: Date | null;
@@ -48,7 +55,7 @@ export function DateRangePicker({ visible, initialStart, initialEnd, onApply, on
   const [showYearPicker, setShowYearPicker] = useState(false);
 
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-  const firstDow = new Date(viewYear, viewMonth, 1).getDay();
+  const firstDow = firstDayOfMonth(viewYear, viewMonth);
 
   const prevMonth = () => {
     if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); }
@@ -83,9 +90,11 @@ export function DateRangePicker({ visible, initialStart, initialEnd, onApply, on
 
   const s = makeStyles(C);
 
-  const cells: (number | null)[] = Array(firstDow).fill(null);
-  for (let i = 1; i <= daysInMonth; i++) cells.push(i);
-  while (cells.length % 7 !== 0) cells.push(null);
+  const flatCells: (number | null)[] = Array(firstDow).fill(null);
+  for (let i = 1; i <= daysInMonth; i++) flatCells.push(i);
+  while (flatCells.length % 7 !== 0) flatCells.push(null);
+  const weeks: (number | null)[][] = [];
+  for (let i = 0; i < flatCells.length; i += 7) weeks.push(flatCells.slice(i, i + 7));
 
   const fmtInput = (d: Date | null) =>
     d ? `${SHORT_MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}` : "Select date";
@@ -206,53 +215,57 @@ export function DateRangePicker({ visible, initialStart, initialEnd, onApply, on
               ))}
             </View>
 
-            {/* Day grid */}
+            {/* Day grid — explicit rows so cells never mis-wrap */}
             <View style={s.grid}>
-              {cells.map((day, idx) => {
-                if (day === null) return <View key={`e-${idx}`} style={s.cell} />;
+              {weeks.map((week, wi) => (
+                <View key={wi} style={s.weekRow2}>
+                  {week.map((day, di) => {
+                    if (day === null) return <View key={`e-${wi}-${di}`} style={s.cell} />;
 
-                const thisDate = new Date(viewYear, viewMonth, day);
-                const isStart = pickStart ? sameDay(thisDate, pickStart) : false;
-                const isEnd = pickEnd ? sameDay(thisDate, pickEnd) : false;
-                const inRange = pickStart && pickEnd
-                  ? thisDate > pickStart && thisDate < pickEnd
-                  : false;
-                const isToday = sameDay(thisDate, today);
-                const isSelected = isStart || isEnd;
+                    const thisDate = new Date(viewYear, viewMonth, day);
+                    const isStart = pickStart ? sameDay(thisDate, pickStart) : false;
+                    const isEnd = pickEnd ? sameDay(thisDate, pickEnd) : false;
+                    const inRange = pickStart && pickEnd
+                      ? thisDate > pickStart && thisDate < pickEnd
+                      : false;
+                    const isToday = sameDay(thisDate, today);
+                    const isSelected = isStart || isEnd;
 
-                const isStartEdge = isStart && !!pickEnd;
-                const isEndEdge = isEnd && !!pickStart;
+                    const isStartEdge = isStart && !!pickEnd;
+                    const isEndEdge = isEnd && !!pickStart;
 
-                return (
-                  <TouchableOpacity
-                    key={day}
-                    style={[
-                      s.cell,
-                      inRange && { backgroundColor: C.primary + "18" },
-                      isStartEdge && { borderTopLeftRadius: 20, borderBottomLeftRadius: 20, backgroundColor: C.primary + "18" },
-                      isEndEdge && { borderTopRightRadius: 20, borderBottomRightRadius: 20, backgroundColor: C.primary + "18" },
-                    ]}
-                    onPress={() => handleDayPress(day)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[
-                      s.dayCircle,
-                      isSelected && { backgroundColor: C.primary },
-                    ]}>
-                      <Text style={[
-                        s.dayText,
-                        { color: isSelected ? "#fff" : isToday ? C.primary : C.text },
-                        isToday && !isSelected && { fontWeight: "700" },
-                      ]}>
-                        {day}
-                      </Text>
-                    </View>
-                    {isToday && !isSelected && (
-                      <View style={[s.todayDot, { backgroundColor: C.primary }]} />
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
+                    return (
+                      <TouchableOpacity
+                        key={day}
+                        style={[
+                          s.cell,
+                          inRange && { backgroundColor: C.primary + "18" },
+                          isStartEdge && { borderTopLeftRadius: 20, borderBottomLeftRadius: 20, backgroundColor: C.primary + "18" },
+                          isEndEdge && { borderTopRightRadius: 20, borderBottomRightRadius: 20, backgroundColor: C.primary + "18" },
+                        ]}
+                        onPress={() => handleDayPress(day)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={[
+                          s.dayCircle,
+                          isSelected && { backgroundColor: C.primary },
+                        ]}>
+                          <Text style={[
+                            s.dayText,
+                            { color: isSelected ? "#fff" : isToday ? C.primary : C.text },
+                            isToday && !isSelected && { fontWeight: "700" },
+                          ]}>
+                            {day}
+                          </Text>
+                        </View>
+                        {isToday && !isSelected && (
+                          <View style={[s.todayDot, { backgroundColor: C.primary }]} />
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ))}
             </View>
 
             {/* Hint */}
@@ -351,9 +364,10 @@ function makeStyles(C: typeof Colors.light) {
     weekRow: { flexDirection: "row", marginTop: 2 },
     weekday: { flex: 1, textAlign: "center", fontSize: 12, fontWeight: "600", paddingVertical: 4 },
 
-    grid: { flexDirection: "row", flexWrap: "wrap" },
+    grid: { flexDirection: "column" },
+    weekRow2: { flexDirection: "row" },
     cell: {
-      width: `${100 / 7}%`,
+      flex: 1,
       aspectRatio: 1,
       alignItems: "center",
       justifyContent: "center",

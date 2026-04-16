@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -14,34 +14,14 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
-
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
+import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 
 import { Colors } from "@/constants/colors";
 import { useCreateExpense, apiFetch } from "@/hooks/useApi";
 import { useColorScheme } from "@/hooks/useColorScheme";
-
-async function uriToBase64(uri: string): Promise<string> {
-  if (uri.startsWith("data:")) {
-    return uri.split(",")[1] ?? "";
-  }
-  if (Platform.OS !== "web") {
-    return FileSystem.readAsStringAsync(uri, { encoding: "base64" as never });
-  }
-  const response = await fetch(uri);
-  const blob = await response.blob();
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const result = reader.result as string;
-      resolve(result.split(",")[1] ?? "");
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
-}
 
 const CATEGORIES = ["Fuel", "Maintenance", "Lumper", "Tolls", "Parking", "Scale Fee", "Other"];
 
@@ -56,7 +36,7 @@ interface ParsedReceipt {
   receiptUrl: string | null;
 }
 
-type ScanStatus = "idle" | "uploading" | "analyzing" | "done" | "error";
+type ScanStatus = "idle" | "analyzing" | "done" | "error";
 
 export default function ScanReceiptScreen() {
   const colorScheme = useColorScheme();
@@ -68,53 +48,89 @@ export default function ScanReceiptScreen() {
   const [scanStatus, setScanStatus] = useState<ScanStatus>("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [parsed, setParsed] = useState<ParsedReceipt | null>(null);
+  const cameraPermGranted = useRef(false);
 
   const createExpense = useCreateExpense();
 
-  const pickImage = async (fromCamera: boolean) => {
-    let result;
-    if (fromCamera) {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("Permission needed", "Camera access is required to scan receipts.");
-        return;
-      }
-      result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ["images"],
-        quality: 0.8,
-        allowsEditing: true,
-      });
-    } else {
-      result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        quality: 0.8,
-        allowsEditing: true,
-      });
-    }
+  // Pre-check camera permissions so the button tap is instant
+  useEffect(() => {
+    ImagePicker.getCameraPermissionsAsync().then(({ status }) => {
+      cameraPermGranted.current = status === "granted";
+    });
+  }, []);
 
-    if (!result.canceled && result.assets[0]) {
-      const uri = result.assets[0].uri;
-      setImage(uri);
+  const pickImage = async (fromCamera: boolean) => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+
+      let result: ImagePicker.ImagePickerResult;
+
+      if (fromCamera) {
+        if (!cameraPermGranted.current) {
+          const { status } = await ImagePicker.requestCameraPermissionsAsync();
+          if (status !== "granted") {
+            setErrorMsg("Camera permission is required to scan receipts. Please enable it in Settings.");
+            setScanStatus("error");
+            return;
+          }
+          cameraPermGranted.current = true;
+        }
+        result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ["images"],
+          quality: 0.7,  // quality < 1 forces JPEG output on iOS
+          allowsEditing: false,
+          exif: false,
+        });
+      } else {
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ["images"],
+          quality: 0.7,
+          allowsEditing: false,
+          exif: false,
+        });
+      }
+
+      if (result.canceled || !result.assets?.[0]) return;
+
+      const asset = result.assets[0];
+      setImage(asset.uri);
       setParsed(null);
       setErrorMsg(null);
-      await processReceipt(uri);
+      setScanStatus("analyzing");
+
+      // Read the file as base64 after getting the URI (avoids large base64 through bridge)
+      let base64: string;
+      if (Platform.OS === "web") {
+        const resp = await fetch(asset.uri);
+        const blob = await resp.blob();
+        base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve((reader.result as string).split(",")[1] ?? "");
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } else {
+        base64 = await FileSystem.readAsStringAsync(asset.uri, {
+          encoding: "base64" as never,
+        });
+      }
+
+      await processReceipt(base64, "image/jpeg");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Something went wrong. Please try again.";
+      setErrorMsg(msg);
+      setScanStatus("error");
     }
   };
 
-  const processReceipt = async (uri: string) => {
+  const processReceipt = async (base64: string, mimeType: string) => {
     try {
-      setScanStatus("uploading");
-      const base64 = await uriToBase64(uri);
-
-      setScanStatus("analyzing");
       const data = await apiFetch("/receipts/process", {
         method: "POST",
-        body: JSON.stringify({
-          imageBase64: base64,
-          mimeType: "image/jpeg",
-        }),
+        body: JSON.stringify({ imageBase64: base64, mimeType }),
       });
-      const today = new Date().toISOString().split("T")[0];
+      const _d = new Date();
+      const today = `${_d.getFullYear()}-${String(_d.getMonth() + 1).padStart(2, "0")}-${String(_d.getDate()).padStart(2, "0")}`;
 
       setParsed({
         merchant: data.merchant ?? "",
@@ -150,7 +166,7 @@ export default function ScanReceiptScreen() {
       category: parsed.category,
       merchant: parsed.merchant.trim(),
       amount,
-      date: parsed.date || new Date().toISOString().split("T")[0],
+      date: parsed.date || (() => { const _d2 = new Date(); return `${_d2.getFullYear()}-${String(_d2.getMonth() + 1).padStart(2, "0")}-${String(_d2.getDate()).padStart(2, "0")}`; })(),
       notes: "Scanned receipt",
       receiptUrl: parsed.receiptUrl ?? undefined,
     };
@@ -169,12 +185,11 @@ export default function ScanReceiptScreen() {
     setParsed((prev) => prev ? { ...prev, [field]: value } : prev);
   };
 
-  const statusLabel: Record<ScanStatus, string> = {
-    idle: "",
-    uploading: "Uploading receipt…",
-    analyzing: "AI is reading your receipt…",
-    done: "",
-    error: "",
+  const reset = () => {
+    setImage(null);
+    setParsed(null);
+    setScanStatus("idle");
+    setErrorMsg(null);
   };
 
   return (
@@ -228,7 +243,7 @@ export default function ScanReceiptScreen() {
               <Image source={{ uri: image }} style={s.receiptImage} resizeMode="contain" />
               <TouchableOpacity
                 style={[s.retakeBtn, { borderColor: C.separator, backgroundColor: C.card }]}
-                onPress={() => { setImage(null); setParsed(null); setScanStatus("idle"); setErrorMsg(null); }}
+                onPress={reset}
               >
                 <Ionicons name="refresh-outline" size={15} color={C.textSecondary} />
                 <Text style={[s.retakeText, { color: C.textSecondary }]}>Retake</Text>
@@ -236,17 +251,24 @@ export default function ScanReceiptScreen() {
             </View>
           )}
 
-          {(scanStatus === "uploading" || scanStatus === "analyzing") && (
+          {scanStatus === "analyzing" && (
             <View style={s.statusBox}>
               <ActivityIndicator size="small" color={C.primary} />
-              <Text style={[s.statusText, { color: C.textSecondary }]}>{statusLabel[scanStatus]}</Text>
+              <Text style={[s.statusText, { color: C.textSecondary }]}>
+                AI is reading your receipt…
+              </Text>
             </View>
           )}
 
           {scanStatus === "error" && (
-            <View style={[s.errorBox, { backgroundColor: "#fef2f2", borderColor: "#fca5a5" }]}>
+            <View style={[s.errorBox, { backgroundColor: C.redLight, borderColor: C.red }]}>
               <Ionicons name="alert-circle-outline" size={20} color="#ef4444" />
-              <Text style={[s.errorText, { color: "#ef4444" }]}>{errorMsg}</Text>
+              <View style={{ flex: 1, gap: 6 }}>
+                <Text style={[s.errorText, { color: "#ef4444" }]}>{errorMsg}</Text>
+                <TouchableOpacity onPress={reset}>
+                  <Text style={{ color: C.primary, fontSize: 13, fontWeight: "600" }}>Try again</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
 
@@ -433,7 +455,7 @@ function makeStyles(C: typeof Colors.light) {
     statusText: { fontSize: 14 },
     errorBox: {
       flexDirection: "row",
-      alignItems: "center",
+      alignItems: "flex-start",
       gap: 8,
       padding: 14,
       borderRadius: 12,
