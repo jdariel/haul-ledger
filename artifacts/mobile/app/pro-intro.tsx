@@ -88,6 +88,28 @@ const INTROS: Record<string, IntroSpec> = {
       "Negotiate harder with the numbers to back you up",
     ],
   },
+  "scan-receipt": {
+    title: "Snap. Scanned. Done.",
+    tagline: "This benefit helps you capture every receipt the moment you get it — no lost deductions.",
+    icon: "scan-outline",
+    color: "#f97316",
+    bullets: [
+      "Snap a photo and we fill in the expense for you",
+      "Every receipt logged means every dollar deducted",
+      "No more shoebox of crumpled paper at tax time",
+    ],
+  },
+  "load-evaluator": {
+    title: "Say No to Bad Loads",
+    tagline: "This benefit helps you know if a load actually pays — before you say yes.",
+    icon: "calculator-outline",
+    color: "#0d9488",
+    bullets: [
+      "Plug in the rate and miles — see real profit instantly",
+      "Built-in cost-per-mile keeps you from running cheap freight",
+      "Negotiate harder with the numbers to back you up",
+    ],
+  },
   backup: {
     title: "Never Lose a Receipt",
     tagline: "This benefit helps you protect every dollar you've earned with secure cloud backup.",

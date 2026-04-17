@@ -40,13 +40,18 @@ export default function HomeScreen() {
     Animated.spring(fabAnim, { toValue: 0, useNativeDriver: true, friction: 6, tension: 80 }).start();
   };
 
+  const { requirePro } = useProAccess();
+
   const handleAction = (action: "expense" | "income" | "scan" | "evaluator") => {
     closeFab();
     setTimeout(() => {
       if (action === "expense") router.push("/add-expense");
       else if (action === "income") router.push("/add-income");
-      else if (action === "scan") router.push("/add-expense?scan=1");
-      else if (action === "evaluator") router.push("/load-evaluator");
+      else if (action === "scan") {
+        if (requirePro("scan-receipt")) router.push("/add-expense?scan=1");
+      } else if (action === "evaluator") {
+        if (requirePro("load-evaluator")) router.push("/load-evaluator");
+      }
     }, 150);
   };
 

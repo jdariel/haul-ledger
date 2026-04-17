@@ -260,7 +260,8 @@ export default function MoreScreen() {
             onPress={() => router.push("/cost-setup")} C={C} />
           <Row icon="trending-up-outline" iconBg={C.grassLight} iconColor={C.grass}
             label="Load Evaluator" subtitle="Know if a load actually pays — before you say yes"
-            onPress={() => router.push("/load-evaluator")} last C={C} />
+            pro={!isPro}
+            onPress={() => { if (requirePro("load-evaluator")) router.push("/load-evaluator"); }} last C={C} />
         </View>
 
         {/* Preferences */}

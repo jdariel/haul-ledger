@@ -25,6 +25,7 @@ import { FormInput } from "@/components/FormInput";
 import { SelectField } from "@/components/SelectField";
 import { useCreateExpense, useUpdateExpense, useExpense, useFleet, apiFetch } from "@/hooks/useApi";
 import { useColorScheme } from "@/hooks/useColorScheme";
+import { useProAccess } from "@/hooks/useProAccess";
 import { trackEntryAndRequestReview } from "@/lib/appReview";
 
 const CATEGORIES = [
@@ -132,9 +133,18 @@ export default function AddExpenseScreen() {
   const isScanning = scanStatus === "uploading" || scanStatus === "analyzing";
   const isSaving = createExpense.isPending || updateExpense.isPending;
 
+  const { isPro, requirePro } = useProAccess();
+
   useEffect(() => {
-    if (scan === "1") launchPicker(false);
+    if (scan === "1") {
+      if (requirePro("scan-receipt")) launchPicker(false);
+    }
   }, []);
+
+  const handleScanPress = (fromCamera: boolean) => {
+    if (!requirePro("scan-receipt")) return;
+    launchPicker(fromCamera);
+  };
 
   const launchPicker = async (fromCamera: boolean) => {
     setScanStatus("picking");
@@ -277,21 +287,31 @@ export default function AddExpenseScreen() {
           <View style={s.scanActions}>
             <TouchableOpacity
               style={[s.scanBtn, { backgroundColor: C.primaryLight }]}
-              onPress={() => launchPicker(true)}
+              onPress={() => handleScanPress(true)}
               activeOpacity={0.7}
               disabled={isScanning}
             >
               <Ionicons name="camera-outline" size={17} color={C.primary} />
               <Text style={[s.scanBtnText, { color: C.primary }]}>Camera</Text>
+              {!isPro && (
+                <View style={s.proChip}>
+                  <Text style={s.proChipText}>PRO</Text>
+                </View>
+              )}
             </TouchableOpacity>
             <TouchableOpacity
               style={[s.scanBtn, { backgroundColor: C.primaryLight }]}
-              onPress={() => launchPicker(false)}
+              onPress={() => handleScanPress(false)}
               activeOpacity={0.7}
               disabled={isScanning}
             >
               <Ionicons name="image-outline" size={17} color={C.primary} />
               <Text style={[s.scanBtnText, { color: C.primary }]}>Scan Receipt</Text>
+              {!isPro && (
+                <View style={s.proChip}>
+                  <Text style={s.proChipText}>PRO</Text>
+                </View>
+              )}
             </TouchableOpacity>
           </View>
         ) : !isEditing && isScanning ? (
@@ -444,6 +464,12 @@ const s = StyleSheet.create({
     borderRadius: 12,
   },
   scanBtnText: { fontSize: 14, fontWeight: "600" },
+  proChip: {
+    backgroundColor: "#f59e0b",
+    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6,
+    marginLeft: 4,
+  },
+  proChipText: { color: "#fff", fontSize: 9, fontWeight: "800", letterSpacing: 0.5 },
   scanningBox: {
     flexDirection: "row",
     alignItems: "center",
