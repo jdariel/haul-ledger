@@ -70,7 +70,7 @@ export default function TermsOfServiceScreen() {
         </Section>
 
         <Section title="7. Intellectual Property" C={C}>
-          All content, design, code, and features of the HaulLedger App are the exclusive property of
+          All content, design, code, and functionality of the HaulLedger App are the exclusive property of
           HaulLedger and its developers. You are granted a limited, non-exclusive, non-transferable license
           to use the App for personal, non-commercial purposes. This license does not include any right to
           copy, modify, or distribute the App.

@@ -88,7 +88,7 @@ export default function IncomeScreen() {
         {/* Header */}
         <View style={s.header}>
           <Text style={s.title}>Income</Text>
-          <Text style={s.subtitle}>Log your loads and settlements.</Text>
+          <Text style={s.subtitle}>Every load you book — money in your pocket.</Text>
         </View>
 
         {/* Add Button */}

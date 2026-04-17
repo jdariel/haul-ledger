@@ -428,7 +428,7 @@ export default function FleetScreen() {
               <View style={[s.emptyBox, { backgroundColor: C.card, borderColor: C.separator }]}>
                 <Ionicons name="car-outline" size={32} color={C.textMuted} />
                 <Text style={[s.emptyText, { color: C.textSecondary }]}>No assets yet</Text>
-                <Text style={[s.emptySub, { color: C.textMuted }]}>Add your trucks and trailers to track them here.</Text>
+                <Text style={[s.emptySub, { color: C.textMuted }]}>Add your trucks and trailers to see what each one really earns.</Text>
               </View>
             ) : (
               assets.map((asset: any) => (

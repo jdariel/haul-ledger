@@ -116,7 +116,7 @@ export default function ExpensesScreen() {
         <View style={s.header}>
           <View>
             <Text style={s.title}>Expenses</Text>
-            <Text style={s.subtitle}>Track every penny spent on the road.</Text>
+            <Text style={s.subtitle}>Every dollar out is a dollar to win back.</Text>
           </View>
         </View>
 

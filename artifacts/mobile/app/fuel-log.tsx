@@ -73,7 +73,7 @@ export default function FuelLogScreen() {
           </TouchableOpacity>
           <View style={s.headerText}>
             <Text style={s.title}>Fuel Log</Text>
-            <Text style={s.subtitle}>Track fuel purchases for IFTA</Text>
+            <Text style={s.subtitle}>Cut fuel cost — file IFTA in minutes</Text>
           </View>
           <TouchableOpacity
             style={[s.addBtn, { backgroundColor: C.primary }]}

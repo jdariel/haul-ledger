@@ -65,7 +65,7 @@ export default function PrivacyPolicyScreen() {
         <Section title="6. Your Rights" C={C}>
           {"You have the right to:\n\n"}
           {"• Access your data at any time through the app.\n\n"}
-          {"• Export your data using the Export feature in Reports.\n\n"}
+          {"• Export your data using the Export option in Reports.\n\n"}
           {"• Delete your account and all associated data permanently from Settings > Account > Delete Account. Deletion is immediate and irreversible.\n\n"}
           {"• Request a copy of your data by contacting us at support@haulledger.com."}
         </Section>

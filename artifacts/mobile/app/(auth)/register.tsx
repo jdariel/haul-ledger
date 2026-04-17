@@ -74,13 +74,13 @@ export default function RegisterScreen() {
               <Text style={s.logoText}>HL</Text>
             </View>
             <Text style={[s.appName, { color: C.text }]}>HaulLedger</Text>
-            <Text style={[s.tagline, { color: C.textSecondary }]}>Track every mile. Own every dollar.</Text>
+            <Text style={[s.tagline, { color: C.textSecondary }]}>Earn more on every mile.</Text>
           </View>
 
           {/* Card */}
           <View style={[s.card, { backgroundColor: C.card, borderColor: C.separator }]}>
             <Text style={[s.cardTitle, { color: C.text }]}>Create account</Text>
-            <Text style={[s.cardSub, { color: C.textSecondary }]}>Start tracking your hauls for free</Text>
+            <Text style={[s.cardSub, { color: C.textSecondary }]}>Start growing your bottom line — free</Text>
 
             {error ? (
               <View style={s.errorBox}>

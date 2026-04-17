@@ -242,24 +242,24 @@ export default function MoreScreen() {
         <Text style={s.sectionLabel}>Tools</Text>
         <View style={[s.card, { backgroundColor: C.card, borderColor: C.separator, padding: 0 }]}>
           <Row icon="map-outline" iconBg={C.primaryLight} iconColor={C.primary}
-            label="Trips" subtitle="Log trips and track mileage"
+            label="Trips" subtitle="Turn every mile into a tax write-off"
             onPress={() => router.push("/trips")} C={C} />
           <Row icon="flame-outline" iconBg={C.orangeLight} iconColor={C.orange}
-            label="Fuel Log" subtitle="Track fuel purchases for IFTA"
+            label="Fuel Log" subtitle="Cut fuel cost — file IFTA in minutes"
             pro={!isPro}
             onPress={() => { if (requirePro("Fuel Log")) router.push("/fuel-log"); }} C={C} />
           <Row icon="git-merge-outline" iconBg={C.tealLight} iconColor={C.teal}
-            label="Saved Routes" subtitle="Templates for quick income logging"
+            label="Saved Routes" subtitle="Book repeat lanes in two taps"
             onPress={() => router.push("/add-route")} C={C} />
           <Row icon="bus-outline" iconBg={C.blue2Light} iconColor={C.blue2}
-            label="Fleet & Assets" subtitle="Manage drivers, trucks and trailers"
+            label="Fleet & Assets" subtitle="See the real profit each truck and driver brings in"
             pro={!isPro}
             onPress={() => { if (requirePro("Fleet & Assets")) router.push("/fleet"); }} C={C} />
           <Row icon="calculator-outline" iconBg={C.purpleLight} iconColor={C.purple}
-            label="Cost Setup" subtitle="Track fixed costs, MPG, cost per mile"
+            label="Cost Setup" subtitle="Lock in your true cost per mile to price loads right"
             onPress={() => router.push("/cost-setup")} C={C} />
           <Row icon="trending-up-outline" iconBg={C.grassLight} iconColor={C.grass}
-            label="Load Evaluator" subtitle="See your clean profit before accepting a load"
+            label="Load Evaluator" subtitle="Know if a load actually pays — before you say yes"
             onPress={() => router.push("/load-evaluator")} last C={C} />
         </View>
 
@@ -334,12 +334,12 @@ export default function MoreScreen() {
         <View style={[s.card, { backgroundColor: C.card, borderColor: C.separator, padding: 0 }]}>
           <Row icon="download-outline" iconBg={C.primaryLight} iconColor={C.primary}
             label={exporting === "json" ? "Exporting…" : "Export All Data"}
-            subtitle="Full backup as JSON — all records included"
+            subtitle="Take your numbers anywhere — full backup, every record"
             pro={!isPro}
             onPress={() => { if (requirePro("Backup & Export")) handleExportJSON(); }} C={C} />
           <Row icon="document-text-outline" iconBg={C.tealLight} iconColor={C.teal}
             label={exporting === "csv" ? "Exporting…" : "Export as CSV"}
-            subtitle="Expenses, income, fuel & trips as a spreadsheet"
+            subtitle="Hand straight to your accountant — Schedule C ready"
             pro={!isPro}
             onPress={() => { if (requirePro("CSV Export")) handleExportCSV(); }} last C={C} />
         </View>

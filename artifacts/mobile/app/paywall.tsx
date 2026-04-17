@@ -19,19 +19,19 @@ import { useSubscription } from "@/lib/revenuecat";
 import type { PurchasesPackage } from "react-native-purchases";
 
 const BENEFITS: { icon: keyof typeof Ionicons.glyphMap; title: string; sub: string }[] = [
-  { icon: "trending-up-outline", title: "Profit per mile", sub: "See your real cost-per-mile and profit-per-mile in real time." },
-  { icon: "map-outline", title: "IFTA made easy", sub: "Track jurisdiction miles and fuel for quarterly filings." },
-  { icon: "bar-chart-outline", title: "Advanced reports", sub: "Export CSV, PDF and Schedule C-ready summaries." },
-  { icon: "bus-outline", title: "Manage multiple trucks", sub: "Fleet view with per-truck profitability." },
-  { icon: "cloud-upload-outline", title: "Secure backups", sub: "Automatic cloud backup of every record." },
-  { icon: "calculator-outline", title: "Load Evaluator+", sub: "CPM-based verdicts using your own cost basis." },
+  { icon: "trending-up-outline", title: "Earn more per mile", sub: "Know your true profit-per-mile so you stop hauling cheap freight." },
+  { icon: "calculator-outline", title: "Say no to bad loads", sub: "Load Evaluator+ tells you in seconds if a load actually pays." },
+  { icon: "cash-outline", title: "Keep more at tax time", sub: "Schedule C-ready exports — every deduction captured, no money left behind." },
+  { icon: "map-outline", title: "IFTA filed in minutes", sub: "Auto-calculated by state — turn paperwork hours into pay-time hours." },
+  { icon: "bus-outline", title: "Grow into a fleet", sub: "See profit per truck and per driver — scale what works." },
+  { icon: "cloud-upload-outline", title: "Never lose a receipt", sub: "Automatic cloud backup protects every dollar you've earned." },
 ];
 
 export default function PaywallScreen() {
   const insets = useSafeAreaInsets();
   const isDark = useColorScheme() !== "light";
   const C = Colors[isDark ? "dark" : "light"];
-  const { feature } = useLocalSearchParams<{ feature?: string }>();
+  const { feature: benefit } = useLocalSearchParams<{ feature?: string }>();
   const {
     currentOffering,
     isLoading,
@@ -119,11 +119,11 @@ export default function PaywallScreen() {
             <Ionicons name="star" size={32} color="#fff" />
           </View>
         </View>
-        <Text style={[s.title, { color: C.text }]}>Upgrade to HaulIQ Pro</Text>
+        <Text style={[s.title, { color: C.text }]}>Make More with HaulIQ Pro</Text>
         <Text style={[s.subtitle, { color: C.textSecondary }]}>
-          {feature
-            ? `Unlock ${feature} and every Pro feature.`
-            : "Unlock every Pro feature, no limits."}
+          {benefit
+            ? `Unlock ${benefit} and every Pro benefit built to grow your bottom line.`
+            : "Unlock every Pro benefit built to grow your bottom line."}
         </Text>
       </LinearGradient>
 

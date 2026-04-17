@@ -63,7 +63,7 @@ export default function LoginScreen() {
               <Text style={s.logoText}>HL</Text>
             </View>
             <Text style={[s.appName, { color: C.text }]}>HaulLedger</Text>
-            <Text style={[s.tagline, { color: C.textSecondary }]}>Track every mile. Own every dollar.</Text>
+            <Text style={[s.tagline, { color: C.textSecondary }]}>Earn more on every mile.</Text>
           </View>
 
           {/* Card */}
