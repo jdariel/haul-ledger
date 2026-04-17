@@ -17,6 +17,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { Colors } from "@/constants/colors";
 import { useSummary } from "../../hooks/useApi";
 import { useColorScheme } from "@/hooks/useColorScheme";
+import { useProAccess } from "@/hooks/useProAccess";
 
 const TAB_BAR_HEIGHT = 56;
 
