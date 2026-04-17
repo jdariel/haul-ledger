@@ -1,0 +1,147 @@
+I want to add a subscription paywall using RevenueCat.
+
+GOAL:
+Convert this app into a freemium SaaS with a Pro subscription.
+
+---
+
+IMPLEMENTATION REQUIREMENTS:
+
+1. SUBSCRIPTION SETUP
+
+- Use RevenueCat for handling subscriptions
+- Support iOS and Android
+- Create a "Pro" entitlement
+
+Frontend:
+- Install RevenueCat SDK for Expo (react-native-purchases)
+
+Backend:
+- Add a "isPro" boolean field to the User model
+- Add webhook endpoint to listen to RevenueCat events
+- Update user.isPro based on subscription status
+
+---
+
+2. FEATURE GATING (VERY IMPORTANT)
+
+FREE USERS CAN:
+- Add income (loads)
+- Add expenses
+- View basic dashboard (weekly profit only)
+
+PRO USERS ONLY:
+- IFTA tracking
+- Reports and exports
+- Fuel analytics
+- Profit per mile calculations
+- Fleet management (multiple trucks)
+- Backup and restore
+
+---
+
+3. FRONTEND LOGIC
+
+Create a reusable hook:
+- useProAccess()
+
+It should:
+- Fetch user subscription status
+- Return isPro boolean
+
+Wrap all premium features like this:
+
+if (!isPro) {
+  showPaywall();
+  return;
+}
+
+Apply this gating to:
+- IFTA screens
+- Reports screen
+- Fuel analytics
+- Fleet management screens
+- Export buttons
+- Backup/restore
+
+---
+
+4. PAYWALL SCREEN
+
+Create a simple screen:
+
+Title: "Upgrade to HaulIQ Pro"
+
+Show benefits:
+- Track profit per mile
+- IFTA made easy
+- Advanced reports
+- Manage multiple trucks
+- Secure backups
+
+Button:
+- "Start Free Trial" (if available)
+- "Upgrade to Pro"
+
+Connect button to RevenueCat purchase flow
+
+---
+
+5. BACKEND CHANGES
+
+- Add isPro column to users table
+- Middleware:
+
+function requirePro(req, res, next) {
+  if (!req.user.isPro) {
+    return res.status(403).json({ error: "Pro subscription required" });
+  }
+  next();
+}
+
+Apply this middleware to:
+- /ifta routes
+- /reports routes
+- /fleet routes
+- /exports
+- /backup
+
+---
+
+6. REVENUECAT WEBHOOK
+
+Create endpoint:
+
+POST /webhooks/revenuecat
+
+Handle events:
+- INITIAL_PURCHASE
+- RENEWAL
+- CANCELLATION
+- EXPIRATION
+
+Update user.isPro accordingly
+
+---
+
+7. UX DETAILS
+
+- If user clicks locked feature → show paywall immediately
+- Do NOT crash or block navigation
+- Show small "Pro" badge on locked features
+
+---
+
+8. TESTING
+
+- Create test user
+- Simulate Pro and Free states
+- Ensure all locked features are properly gated
+
+---
+
+IMPORTANT:
+Do NOT refactor the entire app.
+Only ADD subscription logic and feature gating cleanly.
+
+Keep everything modular and easy to maintain.
