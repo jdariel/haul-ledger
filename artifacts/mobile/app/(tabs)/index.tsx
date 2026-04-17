@@ -40,13 +40,13 @@ export default function HomeScreen() {
     Animated.spring(fabAnim, { toValue: 0, useNativeDriver: true, friction: 6, tension: 80 }).start();
   };
 
-  const handleAction = (action: "expense" | "income" | "scan" | "trip") => {
+  const handleAction = (action: "expense" | "income" | "scan" | "evaluator") => {
     closeFab();
     setTimeout(() => {
       if (action === "expense") router.push("/add-expense");
       else if (action === "income") router.push("/add-income");
       else if (action === "scan") router.push("/add-expense?scan=1");
-      else if (action === "trip") router.push("/add-trip");
+      else if (action === "evaluator") router.push("/load-evaluator");
     }, 150);
   };
 
@@ -246,11 +246,11 @@ export default function HomeScreen() {
           <SpeedDialItem
             anim={fabAnim}
             delay={80}
-            label="Log Trip"
-            icon="navigate-outline"
+            label="Load Evaluator"
+            icon="calculator-outline"
             iconColor="#fff"
             bgColor={C.teal}
-            onPress={() => handleAction("trip")}
+            onPress={() => handleAction("evaluator")}
           />
           <SpeedDialItem
             anim={fabAnim}
