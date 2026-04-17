@@ -26,6 +26,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useAppContext } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
 import { useColorScheme } from "@/hooks/useColorScheme";
+import { useProAccess } from "@/hooks/useProAccess";
 
 interface RowProps {
   icon: string;
@@ -36,10 +37,11 @@ interface RowProps {
   onPress: () => void;
   rightElement?: React.ReactNode;
   last?: boolean;
+  pro?: boolean;
   C: typeof Colors.light;
 }
 
-function Row({ icon, iconBg, iconColor, label, subtitle, onPress, rightElement, last, C }: RowProps) {
+function Row({ icon, iconBg, iconColor, label, subtitle, onPress, rightElement, last, pro, C }: RowProps) {
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -52,7 +54,15 @@ function Row({ icon, iconBg, iconColor, label, subtitle, onPress, rightElement, 
         <Ionicons name={icon as any} size={19} color={iconColor} />
       </View>
       <View style={rowS.text}>
-        <Text style={[rowS.label, { color: C.text }]}>{label}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <Text style={[rowS.label, { color: C.text }]}>{label}</Text>
+          {pro ? (
+            <View style={rowS.proBadge}>
+              <Ionicons name="star" size={9} color="#fff" />
+              <Text style={rowS.proBadgeText}>PRO</Text>
+            </View>
+          ) : null}
+        </View>
         {subtitle ? <Text style={[rowS.sub, { color: C.textSecondary }]}>{subtitle}</Text> : null}
       </View>
       {rightElement ?? <Ionicons name="chevron-forward" size={15} color={C.textMuted} />}
@@ -72,6 +82,11 @@ const rowS = StyleSheet.create({
   text: { flex: 1 },
   label: { fontSize: 15, fontWeight: "600" },
   sub: { fontSize: 12, marginTop: 1 },
+  proBadge: {
+    flexDirection: "row", alignItems: "center", gap: 2,
+    backgroundColor: "#f59e0b", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6,
+  },
+  proBadgeText: { color: "#fff", fontSize: 9, fontWeight: "800", letterSpacing: 0.3 },
 });
 
 export default function MoreScreen() {
@@ -79,6 +94,7 @@ export default function MoreScreen() {
   const C = Colors[colorScheme === "dark" ? "dark" : "light"];
   const { settings, updateSettings } = useAppContext();
   const { user, token, logout, deleteAccount, updateProfile } = useAuth();
+  const { isPro, requirePro } = useProAccess();
   const isDark = settings.colorScheme === "dark";
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
@@ -230,13 +246,15 @@ export default function MoreScreen() {
             onPress={() => router.push("/trips")} C={C} />
           <Row icon="flame-outline" iconBg={C.orangeLight} iconColor={C.orange}
             label="Fuel Log" subtitle="Track fuel purchases for IFTA"
-            onPress={() => router.push("/fuel-log")} C={C} />
+            pro={!isPro}
+            onPress={() => { if (requirePro("Fuel Log")) router.push("/fuel-log"); }} C={C} />
           <Row icon="git-merge-outline" iconBg={C.tealLight} iconColor={C.teal}
             label="Saved Routes" subtitle="Templates for quick income logging"
             onPress={() => router.push("/add-route")} C={C} />
           <Row icon="bus-outline" iconBg={C.blue2Light} iconColor={C.blue2}
             label="Fleet & Assets" subtitle="Manage drivers, trucks and trailers"
-            onPress={() => router.push("/fleet")} C={C} />
+            pro={!isPro}
+            onPress={() => { if (requirePro("Fleet & Assets")) router.push("/fleet"); }} C={C} />
           <Row icon="calculator-outline" iconBg={C.purpleLight} iconColor={C.purple}
             label="Cost Setup" subtitle="Track fixed costs, MPG, cost per mile"
             onPress={() => router.push("/cost-setup")} C={C} />
@@ -317,11 +335,13 @@ export default function MoreScreen() {
           <Row icon="download-outline" iconBg={C.primaryLight} iconColor={C.primary}
             label={exporting === "json" ? "Exporting…" : "Export All Data"}
             subtitle="Full backup as JSON — all records included"
-            onPress={handleExportJSON} C={C} />
+            pro={!isPro}
+            onPress={() => { if (requirePro("Backup & Export")) handleExportJSON(); }} C={C} />
           <Row icon="document-text-outline" iconBg={C.tealLight} iconColor={C.teal}
             label={exporting === "csv" ? "Exporting…" : "Export as CSV"}
             subtitle="Expenses, income, fuel & trips as a spreadsheet"
-            onPress={handleExportCSV} last C={C} />
+            pro={!isPro}
+            onPress={() => { if (requirePro("CSV Export")) handleExportCSV(); }} last C={C} />
         </View>
 
         {/* Legal */}

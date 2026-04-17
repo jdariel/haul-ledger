@@ -16,6 +16,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider, useAppContext } from "@/context/AppContext";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { initializeRevenueCat, SubscriptionProvider } from "@/lib/revenuecat";
+import { Alert } from "react-native";
 import { BiometricLockScreen } from "@/components/BiometricLockScreen";
 import { ForceUpdateScreen } from "@/components/ForceUpdateScreen";
 import { checkAppVersion } from "@/lib/versionCheck";
@@ -27,6 +29,13 @@ import * as Sentry from "@sentry/react-native";
 
 // Initialize Sentry as early as possible — before any component renders
 initSentry();
+
+// Initialize RevenueCat at module load time
+try {
+  initializeRevenueCat();
+} catch (err: any) {
+  console.warn("RevenueCat init failed:", err?.message ?? err);
+}
 
 SplashScreen.preventAutoHideAsync();
 
@@ -164,6 +173,7 @@ function RootLayoutNav() {
         <Stack.Screen name="fleet" options={{ headerShown: false }} />
         <Stack.Screen name="cost-setup" options={{ headerShown: false }} />
         <Stack.Screen name="load-evaluator" options={{ headerShown: false }} />
+        <Stack.Screen name="paywall" options={{ presentation: "modal", headerShown: false, gestureEnabled: true }} />
       </Stack>
       {isLocked && (
         <BiometricLockScreen onUnlock={() => setIsLocked(false)} />
@@ -198,13 +208,15 @@ function RootLayout() {
     <SafeAreaProvider>
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
-          <AppProvider>
-            <AuthProvider>
-              <GestureHandlerRootView style={{ flex: 1 }}>
-                <RootLayoutNav />
-              </GestureHandlerRootView>
-            </AuthProvider>
-          </AppProvider>
+          <SubscriptionProvider>
+            <AppProvider>
+              <AuthProvider>
+                <GestureHandlerRootView style={{ flex: 1 }}>
+                  <RootLayoutNav />
+                </GestureHandlerRootView>
+              </AuthProvider>
+            </AppProvider>
+          </SubscriptionProvider>
         </QueryClientProvider>
       </ErrorBoundary>
     </SafeAreaProvider>

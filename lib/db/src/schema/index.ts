@@ -9,6 +9,9 @@ export const usersTable = pgTable("users", {
   passwordHash: text("password_hash").notNull(),
   expoPushToken: text("expo_push_token"), // Expo push notification token (nullable)
   targetMonthlyMiles: integer("target_monthly_miles"), // User-set monthly miles target
+  // Subscription (RevenueCat)
+  isPro: boolean("is_pro").default(false).notNull(),
+  proExpiresAt: timestamp("pro_expires_at"), // Optional snapshot from RevenueCat
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

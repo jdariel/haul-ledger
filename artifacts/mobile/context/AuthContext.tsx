@@ -6,6 +6,7 @@ import { router } from "expo-router";
 import { API_BASE_URL } from "@/constants/api";
 import { setAuthToken, setOn401Handler } from "@/hooks/useApi";
 import { registerPushToken, unregisterPushToken } from "@/lib/pushNotifications";
+import { identifyRevenueCatUser, resetRevenueCatUser } from "@/lib/revenuecat";
 
 async function getNotificationsEnabled(): Promise<boolean> {
   try {
@@ -100,6 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setAuthToken(stored);
           setToken(stored);
           setUser(u);
+          identifyRevenueCatUser(u.id).catch(() => {});
           // Re-register push token on each app launch (token may have rotated)
           // but only if the user hasn't disabled notifications
           getNotificationsEnabled().then(enabled => {
@@ -135,6 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthToken(data.token);
     setToken(data.token);
     setUser(data.user);
+    identifyRevenueCatUser(data.user.id).catch(() => {});
     registerPushToken(data.token).catch(() => {});
     router.replace("/(tabs)");
   };
@@ -151,6 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthToken(data.token);
     setToken(data.token);
     setUser(data.user);
+    identifyRevenueCatUser(data.user.id).catch(() => {});
     registerPushToken(data.token).catch(() => {});
     // New users see the onboarding walkthrough before the main app
     router.replace("/onboarding");
@@ -163,6 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthToken(null);
     setToken(null);
     setUser(null);
+    resetRevenueCatUser().catch(() => {});
     router.replace("/(auth)/login");
   };
 

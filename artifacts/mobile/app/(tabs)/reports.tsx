@@ -19,6 +19,7 @@ import { Colors } from "@/constants/colors";
 import { useSummary, useExpenses, useIncome, useTrips } from "../../hooks/useApi";
 import { DateRangePicker } from "@/components/DateRangePicker";
 import { useColorScheme } from "@/hooks/useColorScheme";
+import { useProAccess } from "@/hooks/useProAccess";
 
 function fmtDate(d: Date) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -136,6 +137,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 export default function ReportsScreen() {
   const colorScheme = useColorScheme();
   const C = Colors[colorScheme === "dark" ? "dark" : "light"];
+  const { isPro, requirePro } = useProAccess();
   const [tab, setTab] = useState<ReportTab>("all");
   const [refreshing, setRefreshing] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -303,20 +305,20 @@ export default function ReportsScreen() {
           <View style={s.headerBtns}>
             <TouchableOpacity
               style={[s.headerBtn, { borderColor: C.green, backgroundColor: C.greenLight }]}
-              onPress={handleExport}
+              onPress={() => { if (requirePro("Reports Export")) handleExport(); }}
               disabled={exporting}
             >
               {exporting
                 ? <ActivityIndicator size="small" color={C.green} />
-                : <Ionicons name="download-outline" size={14} color={C.green} />
+                : <Ionicons name={isPro ? "download-outline" : "lock-closed-outline"} size={14} color={C.green} />
               }
               <Text style={[s.headerBtnText, { color: C.green }]}>Export</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[s.headerBtn, { borderColor: C.primary, backgroundColor: C.primary + "12" }]}
-              onPress={() => router.push("/ifta")}
+              onPress={() => { if (requirePro("IFTA Reports")) router.push("/ifta"); }}
             >
-              <Ionicons name="document-text-outline" size={14} color={C.primary} />
+              <Ionicons name={isPro ? "document-text-outline" : "lock-closed-outline"} size={14} color={C.primary} />
               <Text style={[s.headerBtnText, { color: C.primary }]}>IFTA</Text>
             </TouchableOpacity>
           </View>

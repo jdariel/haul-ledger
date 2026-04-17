@@ -18,6 +18,8 @@ import exportRouter from "./export";
 import fleetRouter from "./fleet";
 import costSettingsRouter from "./cost-settings";
 import geoRouter from "./geo";
+import webhooksRouter from "./webhooks";
+import { requirePro } from "../middleware/requirePro";
 
 const router: IRouter = Router();
 
@@ -26,6 +28,7 @@ router.use(healthRouter);
 router.use("/auth", authRouter);
 router.use(storageRouter); // Receipt image serving — objects protected by ACL
 router.use("/admin", adminRouter); // Admin endpoints — protected by ADMIN_SECRET
+router.use("/webhooks", webhooksRouter); // External webhooks (RevenueCat, etc.)
 
 // Protected routes (JWT required)
 router.use("/expenses", requireAuth, expensesRouter);
@@ -37,10 +40,11 @@ router.use("/saved-routes", requireAuth, savedRoutesRouter);
 router.use("/quick-expenses", requireAuth, quickExpensesRouter);
 router.use("/summary", requireAuth, summaryRouter);
 router.use("/receipts", requireAuth, receiptsRouter);
-router.use("/ifta", requireAuth, iftaRouter);
-router.use("/export", requireAuth, exportRouter);
-router.use("/fleet", requireAuth, fleetRouter);
-router.use("/cost-settings", requireAuth, costSettingsRouter);
+// Pro-only routes (JWT + Pro entitlement required)
+router.use("/ifta", requireAuth, requirePro, iftaRouter);
+router.use("/export", requireAuth, requirePro, exportRouter);
+router.use("/fleet", requireAuth, requirePro, fleetRouter);
+router.use("/cost-settings", requireAuth, requirePro, costSettingsRouter);
 router.use("/geo", geoRouter);
 
 export default router;

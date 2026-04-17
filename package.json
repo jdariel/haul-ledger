@@ -23,5 +23,8 @@
       "picomatch@3": "^3.0.2",
       "picomatch@4": "^4.0.4"
     }
+  },
+  "dependencies": {
+    "@replit/revenuecat-sdk": "4.0.0"
   }
 }
