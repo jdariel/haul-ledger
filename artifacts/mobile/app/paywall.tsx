@@ -18,6 +18,8 @@ import { Colors } from "@/constants/colors";
 import { useSubscription } from "@/lib/revenuecat";
 import type { PurchasesPackage } from "react-native-purchases";
 
+const FREE_TRIAL_DAYS = 7;
+
 const BENEFITS: { icon: keyof typeof Ionicons.glyphMap; title: string; sub: string }[] = [
   { icon: "trending-up-outline", title: "Earn more per mile", sub: "Know your true profit-per-mile so you stop hauling cheap freight." },
   { icon: "calculator-outline", title: "Say no to bad loads", sub: "Load Evaluator+ tells you in seconds if a load actually pays." },
@@ -125,6 +127,10 @@ export default function PaywallScreen() {
             ? `Unlock ${benefit} and every Pro benefit built to grow your bottom line.`
             : "Unlock every Pro benefit built to grow your bottom line."}
         </Text>
+        <View style={s.trialPill}>
+          <Ionicons name="gift-outline" size={14} color="#fff" />
+          <Text style={s.trialPillText}>{FREE_TRIAL_DAYS}-day free trial · Cancel anytime</Text>
+        </View>
       </LinearGradient>
 
       <ScrollView
@@ -195,7 +201,7 @@ export default function PaywallScreen() {
                       selected={selected === "monthly"}
                       label="Monthly"
                       price={monthlyPkg.product.priceString}
-                      sub="per month"
+                      sub={`After ${FREE_TRIAL_DAYS}-day trial`}
                       onPress={() => setSelected("monthly")}
                       C={C}
                     />
@@ -205,8 +211,8 @@ export default function PaywallScreen() {
                       selected={selected === "annual"}
                       label="Annual"
                       price={annualPkg.product.priceString}
-                      sub={annualSavings ? `Save ${annualSavings}%` : "per year"}
-                      badge={annualSavings ? `${annualSavings}% OFF` : "BEST"}
+                      sub={annualSavings ? `Save ${annualSavings}% · then per year` : `After ${FREE_TRIAL_DAYS}-day trial`}
+                      badge={annualSavings ? `${annualSavings}% OFF` : "BEST VALUE"}
                       onPress={() => setSelected("annual")}
                       C={C}
                     />
@@ -224,11 +230,15 @@ export default function PaywallScreen() {
               {isPurchasing ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={s.ctaText}>
-                  {selectedPkg?.product.introPrice ? "Start Free Trial" : "Upgrade to Pro"}
-                </Text>
+                <Text style={s.ctaText}>Start {FREE_TRIAL_DAYS}-Day Free Trial</Text>
               )}
             </TouchableOpacity>
+            <Text style={[s.trialFootnote, { color: C.textMuted }]}>
+              No charge today. We'll remind you before your trial ends.
+              Then {selectedPkg?.product.priceString ?? ""}
+              {selected === "annual" ? " per year" : " per month"}.
+              Cancel anytime in {Platform.OS === "android" ? "Google Play" : "App Store"} settings.
+            </Text>
           </>
         )}
       </View>
@@ -279,6 +289,14 @@ function makeStyles(C: any) {
     },
     title: { fontSize: 26, fontWeight: "800", textAlign: "center", marginTop: 4 },
     subtitle: { fontSize: 14, textAlign: "center", marginTop: 6, paddingHorizontal: 16 },
+    trialPill: {
+      flexDirection: "row", alignItems: "center", gap: 6,
+      alignSelf: "center", marginTop: 12,
+      backgroundColor: "#10b981",
+      paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999,
+    },
+    trialPillText: { color: "#fff", fontSize: 12, fontWeight: "700" },
+    trialFootnote: { fontSize: 11, textAlign: "center", lineHeight: 15, marginTop: -4 },
     body: { padding: 16, gap: 10 },
     benefitRow: {
       flexDirection: "row", alignItems: "flex-start", gap: 12,
