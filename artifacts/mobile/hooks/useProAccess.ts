@@ -15,8 +15,14 @@ export function useProAccess() {
   const { isSubscribed, isLoading } = useSubscription();
   const isPro = isSubscribed;
 
-  function showPaywall(feature?: string) {
-    router.push(feature ? `/paywall?feature=${encodeURIComponent(feature)}` : "/paywall");
+  /**
+   * Routes to the soft-wall intro first; the user taps "Continue" to reach the paywall.
+   * Pass `skipIntro: true` when the user is already on the paywall context (e.g. tapping
+   * a Pro chip from inside the paywall itself).
+   */
+  function showPaywall(feature?: string, opts?: { skipIntro?: boolean }) {
+    const target = opts?.skipIntro ? "/paywall" : "/pro-intro";
+    router.push(feature ? `${target}?feature=${encodeURIComponent(feature)}` : target);
   }
 
   /** Returns true if the caller may proceed; false (and routes to paywall) otherwise. */

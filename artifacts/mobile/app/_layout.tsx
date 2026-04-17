@@ -173,6 +173,7 @@ function RootLayoutNav() {
         <Stack.Screen name="fleet" options={{ headerShown: false }} />
         <Stack.Screen name="cost-setup" options={{ headerShown: false }} />
         <Stack.Screen name="load-evaluator" options={{ headerShown: false }} />
+        <Stack.Screen name="pro-intro" options={{ presentation: "modal", headerShown: false, gestureEnabled: true }} />
         <Stack.Screen name="paywall" options={{ presentation: "modal", headerShown: false, gestureEnabled: true }} />
       </Stack>
       {isLocked && (
